@@ -4,6 +4,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const BASE_URL = "http://192.168.1.44:8000/api";
 
+// Utility function to replace localhost URLs with actual IP for mobile app access
+export const fixImageUrl = (imageUrl) => {
+  if (!imageUrl) return null;
+  // Replace localhost variants with the actual IP
+  return imageUrl
+    .replace('127.0.0.1', '192.168.1.44')
+    .replace('localhost', '192.168.1.44');
+};
+
 // Token management
 export const getToken = async () => {
   try {

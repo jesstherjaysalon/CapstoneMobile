@@ -12,7 +12,7 @@ import {
   FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BASE_URL } from '../api';
+import { BASE_URL, fixImageUrl } from '../api';
 import { getRequest, getToken } from '../api';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -72,7 +72,9 @@ const ServiceDetails = ({ id, service: initialService, navigate }) => {
     try {
       setLoadingServices(true);
       const response = await getRequest(`/bookings/completed-services/${id}`);
+      console.log('Completed services response:', response);
       if (response && response.success) {
+        console.log('Services data:', response.data);
         setCompletedServices(response.data || []);
       }
     } catch (error) {
@@ -90,16 +92,24 @@ const ServiceDetails = ({ id, service: initialService, navigate }) => {
   };
 
   const renderServiceCard = ({ item }) => {
+    console.log('Service item:', item);
     let serviceImage = null;
-    if (item.image) {
+    // Use image_url if provided by API, otherwise fall back to constructing URL
+    if (item.image_url) {
+      serviceImage = fixImageUrl(item.image_url);
+      console.log('Using image_url (fixed):', serviceImage);
+    } else if (item.image) {
       const baseUrl = BASE_URL.replace('/api', '');
       if (item.image.startsWith('http')) {
-        serviceImage = item.image;
+        serviceImage = fixImageUrl(item.image);
       } else if (item.image.startsWith('/')) {
         serviceImage = `${baseUrl}${item.image}`;
       } else {
         serviceImage = `${baseUrl}/storage/${item.image}`;
       }
+      console.log('Constructed image URL:', serviceImage);
+    } else {
+      console.log('No image found');
     }
 
     const rating = item.rating || 0;
