@@ -61,10 +61,10 @@ export const getRequest = async (endpoint) => {
 // =========================
 // Generic POST request
 // =========================
-export const postRequest = async (endpoint, data) => {
+export const postRequest = async (endpoint, data, options = {}) => {
   try {
     const isFormData = data instanceof FormData;
-    const token = await getToken();
+    const token = options.skipAuth ? null : await getToken();
     const headers = isFormData ? {} : {
       "Content-Type": "application/json",
     };

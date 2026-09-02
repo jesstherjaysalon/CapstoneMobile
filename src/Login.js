@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -19,6 +20,10 @@ const LoginScreen = ({ onNavigateToRegister, onLoginSuccess }) => {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [verification, setVerification] = useState(null);
+  const [otpModal, setOtpModal] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
 
   const toggleShowPassword = () => setShowPassword((prev) => !prev);
 
@@ -42,6 +47,15 @@ const LoginScreen = ({ onNavigateToRegister, onLoginSuccess }) => {
 
       const response = await postRequest('/login', payload);
 
+      if (response?.requires_verification && response.data?.user) {
+        setVerification({
+          user: response.data.user,
+          pendingToken: response.data.pending_token,
+          canFaceVerify: response.data.can_face_verify,
+        });
+        return;
+      }
+
       if (response && response.success && response.data?.user) {
         // Store the authentication token
         if (response.data.token) {
@@ -62,6 +76,50 @@ const LoginScreen = ({ onNavigateToRegister, onLoginSuccess }) => {
       setMessageType('error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const sendOtp = async () => {
+    setOtpLoading(true);
+    try {
+      const response = await postRequest('/login/otp/send', {
+        pending_token: verification.pendingToken,
+      }, { skipAuth: true });
+
+      setMessage(response?.message || 'Unable to send the verification code.');
+      setMessageType(response?.success ? 'success' : 'error');
+      if (response?.success) {
+        setOtp('');
+        setOtpModal(true);
+      }
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (!/^\d{6}$/.test(otp)) {
+      setMessage('Enter the 6-digit code sent to your email.');
+      setMessageType('error');
+      return;
+    }
+
+    setOtpLoading(true);
+    const response = await postRequest('/login/otp/verify', {
+      pending_token: verification.pendingToken,
+      otp,
+    }, { skipAuth: true });
+    setOtpLoading(false);
+
+    if (response?.success && response.data?.token) {
+      await setToken(response.data.token);
+      setVerification(null);
+      setOtpModal(false);
+      setOtp('');
+      onLoginSuccess?.(response.data.user);
+    } else {
+      setMessage(response?.message || 'Invalid verification code.');
+      setMessageType('error');
     }
   };
 
@@ -136,6 +194,84 @@ const LoginScreen = ({ onNavigateToRegister, onLoginSuccess }) => {
           </View>
         </View>
       </KeyboardAvoidingView>
+      <Modal
+        visible={Boolean(verification && !otpModal)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVerification(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIcon}>
+              <Text style={styles.modalIconText}>ID</Text>
+            </View>
+            <Text style={styles.modalTitle}>Verify your identity</Text>
+            <Text style={styles.modalSubtitle}>Choose a secure way to finish signing in.</Text>
+
+            {verification?.canFaceVerify ? (
+              <TouchableOpacity
+                style={styles.modalPrimaryButton}
+                onPress={() => {
+                  const selected = verification;
+                  setVerification(null);
+                  onLoginSuccess?.({ ...selected.user, pendingToken: selected.pendingToken, requiresFaceVerification: true });
+                }}>
+                <Text style={styles.modalPrimaryText}>Use face verification</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            <TouchableOpacity style={styles.modalSecondaryButton} onPress={sendOtp} disabled={otpLoading}>
+              {otpLoading ? <ActivityIndicator color="#2563eb" /> : <Text style={styles.modalSecondaryText}>Continue with Gmail OTP</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalCancelButton} onPress={() => setVerification(null)}>
+              <Text style={styles.modalCancelText}>Cancel sign in</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={Boolean(verification && otpModal)}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setOtpModal(false)}>
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIcon}>
+              <Text style={styles.modalIconText}>@</Text>
+            </View>
+            <Text style={styles.modalTitle}>Check your email</Text>
+            <Text style={styles.modalSubtitle}>
+              We sent a 6-digit verification code to your registered Gmail address.
+            </Text>
+
+            <TextInput
+              style={styles.otpInput}
+              placeholder="000000"
+              placeholderTextColor="#94a3b8"
+              keyboardType="number-pad"
+              maxLength={6}
+              value={otp}
+              onChangeText={setOtp}
+              autoFocus
+            />
+            {message && messageType === 'error' ? (
+              <Text style={styles.otpError}>{message}</Text>
+            ) : null}
+            <TouchableOpacity style={styles.modalVerifyButton} onPress={verifyOtp} disabled={otpLoading}>
+              {otpLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalPrimaryText}>Verify and sign in</Text>}
+            </TouchableOpacity>
+            <View style={styles.otpActions}>
+              <TouchableOpacity onPress={() => setOtpModal(false)} disabled={otpLoading}>
+                <Text style={styles.modalCancelText}>Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={sendOtp} disabled={otpLoading}>
+                <Text style={styles.resendText}>Resend code</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -320,6 +456,116 @@ const styles = StyleSheet.create({
   },
   error: {
     color: '#B91C1C',
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+  },
+  modalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 28,
+    padding: 26,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 14 },
+    shadowRadius: 26,
+    elevation: 12,
+  },
+  modalIcon: {
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    borderRadius: 18,
+    height: 52,
+    justifyContent: 'center',
+    marginBottom: 18,
+    width: 52,
+  },
+  modalIconText: {
+    color: '#2563eb',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 2,
+  },
+  modalTitle: {
+    color: '#111827',
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    color: '#475569',
+    fontSize: 14,
+    lineHeight: 21,
+    marginBottom: 24,
+  },
+  modalPrimaryButton: {
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 10,
+  },
+  modalPrimaryText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  modalSecondaryButton: {
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderColor: '#dbeafe',
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 12,
+  },
+  modalSecondaryText: {
+    color: '#2563eb',
+    fontWeight: '700',
+  },
+  otpInput: {
+    backgroundColor: '#f8fafc',
+    borderColor: '#bfdbfe',
+    borderRadius: 16,
+    borderWidth: 1,
+    color: '#111827',
+    fontSize: 26,
+    fontWeight: '700',
+    letterSpacing: 8,
+    padding: 16,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  otpError: {
+    color: '#b91c1c',
+    fontSize: 13,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  modalVerifyButton: {
+    alignItems: 'center',
+    backgroundColor: '#0f172a',
+    borderRadius: 16,
+    padding: 16,
+  },
+  otpActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 18,
+    paddingHorizontal: 4,
+  },
+  resendText: {
+    color: '#2563eb',
+    fontWeight: '700',
+  },
+  modalCancelButton: {
+    alignItems: 'center',
+    padding: 14,
+  },
+  modalCancelText: {
+    color: '#64748b',
+    fontWeight: '600',
   },
 });
 

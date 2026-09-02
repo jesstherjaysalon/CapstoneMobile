@@ -117,7 +117,7 @@ function App() {
 
   const handleLoginSuccess = async (userData) => {
     setUser(userData);
-    const nextScreen = userData?.role === 'Customer' ? 'faceverify' : 'home';
+    const nextScreen = userData?.requiresFaceVerification ? 'faceverify' : 'home';
     setCurrentScreen(nextScreen);
     setScreenParams(null);
     await storeData('authState', { user: userData, currentScreen: nextScreen, screenParams: null });
@@ -182,9 +182,14 @@ function App() {
         return user ? (
           <FaceVerifyScreen
             user={user}
-            onVerified={async () => {
+            pendingToken={user?.pendingToken}
+            onVerified={async (verifiedData) => {
+              const verifiedUser = { ...(verifiedData || user) };
+              delete verifiedUser.pendingToken;
+              delete verifiedUser.requiresFaceVerification;
+              setUser(verifiedUser);
               await setScreen('home');
-              await storeData('authState', { user, currentScreen: 'home', screenParams: null });
+              await storeData('authState', { user: verifiedUser, currentScreen: 'home', screenParams: null });
             }}
             onCancel={handleLogout}
           />

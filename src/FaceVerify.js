@@ -13,9 +13,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { postRequest } from '../api';
+import { postRequest, setToken } from '../api';
 
-const FaceVerifyScreen = ({ user, onVerified, onCancel }) => {
+const FaceVerifyScreen = ({ user, pendingToken, onVerified, onCancel }) => {
   const [capturedImage, setCapturedImage] = useState(null);
   const [capturedAsset, setCapturedAsset] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -178,6 +178,7 @@ const FaceVerifyScreen = ({ user, onVerified, onCancel }) => {
         type: capturedAsset.type || 'image/jpeg',
       });
       formData.append('user_id', user?.id);
+      formData.append('pending_token', pendingToken);
       formData.append('expires_at', user?.face_verification_expires_at || new Date(Date.now() + 5 * 60 * 1000).toISOString());
 
       const response = await postRequest('/customer/face/verify', formData);
@@ -188,6 +189,9 @@ const FaceVerifyScreen = ({ user, onVerified, onCancel }) => {
       setConfidence(isNaN(actualConfidence) ? 0 : actualConfidence);
 
       if (response?.verified) {
+        if (response.data?.token) {
+          await setToken(response.data.token);
+        }
         setVerificationStatus('matched');
         setMessage('Identity Verified');
         setMessageType('success');
@@ -195,7 +199,7 @@ const FaceVerifyScreen = ({ user, onVerified, onCancel }) => {
         
         // Auto-login after short delay
         setTimeout(() => {
-          onVerified?.();
+          onVerified?.(response.data?.user || user);
         }, 1500);
         return;
       } else {
