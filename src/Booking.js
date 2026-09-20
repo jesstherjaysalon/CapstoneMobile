@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { getData } from '../storageUtils';
 import {
   SafeAreaView,
   View,
@@ -16,7 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalendarList } from 'react-native-calendars';
-import { BASE_URL } from '../api';
+import { BASE_URL, getRequest } from '../api';
 
 const ServiceRow = ({ item, selected, onToggle }) => (
   <TouchableOpacity style={[styles.serviceRow, selected && styles.serviceRowSelected]} onPress={() => onToggle(item)}>
@@ -37,6 +36,10 @@ const Booking = ({ navigate, routeParams }) => {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(preselected ? [preselected] : []);
+  const [vehicles, setVehicles] = useState([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState(null);
+  const [showServiceDropdown, setShowServiceDropdown] = useState(false);
+  const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
   const [slots, setSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -81,13 +84,24 @@ const Booking = ({ navigate, routeParams }) => {
         setLoading(true);
         setBookingMessage('');
         setBookingState(null);
-        
+
         const res = await fetch(`${BASE_URL}/services`);
         const json = await res.json();
         if (!res.ok) throw new Error(json.message || 'Failed to load services');
         if (mounted) setServices(json.data || []);
 
-        // fetch slots for selected date
+        const vehicleResponse = await getRequest('/vehicles');
+        if (mounted && vehicleResponse?.success) {
+          const customerVehicles = vehicleResponse.data || [];
+          setVehicles(customerVehicles);
+          if (customerVehicles.length > 0 && !selectedVehicleId) {
+            setSelectedVehicleId(customerVehicles[0].id);
+          }
+          if (customerVehicles.length === 0) {
+            setSelectedVehicleId(null);
+          }
+        }
+
         try {
           const slotUrl = `${BASE_URL}/schedules/slots?date=${encodeURIComponent(selectedDate)}`;
           const sres = await fetch(slotUrl);
@@ -98,7 +112,6 @@ const Booking = ({ navigate, routeParams }) => {
           } else {
             if (mounted) {
               setSlots([]);
-              // Don't set error state here - just log it
               console.warn('Failed to load slots:', sjson?.message);
             }
           }
@@ -185,6 +198,11 @@ const Booking = ({ navigate, routeParams }) => {
       setBookingState('error');
       return;
     }
+    if (!selectedVehicleId) {
+      setBookingMessage('Please select your vehicle');
+      setBookingState('error');
+      return;
+    }
     if (!selectedSlot) {
       setBookingMessage('Choose an available slot');
       setBookingState('error');
@@ -195,6 +213,7 @@ const Booking = ({ navigate, routeParams }) => {
     if (navigate) {
       navigate('payment', {
         services: selected,
+        vehicle_id: selectedVehicleId,
         date: selectedDate,
         time: timeValue,
         total,
@@ -232,18 +251,118 @@ const Booking = ({ navigate, routeParams }) => {
           data={[1]} // Single item to enable scrolling
           renderItem={() => (
             <View style={styles.scrollContent}>
-              {/* Services Section */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Select Services</Text>
-                <FlatList
-                  data={services}
-                  scrollEnabled={false}
-                  keyExtractor={(i) => String(i.id)}
-                  renderItem={({ item }) => (
-                    <ServiceRow item={item} selected={!!selected.find((s) => s.id === item.id)} onToggle={toggleService} />
-                  )}
-                  ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-                />
+                <Text style={styles.sectionTitle}>Vehicle</Text>
+                <TouchableOpacity
+                  style={styles.dropdownBox}
+                  onPress={() => setShowVehicleDropdown((prev) => !prev)}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.dropdownText}>
+                    {vehicles.find((vehicle) => vehicle.id === selectedVehicleId)
+                      ? `${vehicles.find((vehicle) => vehicle.id === selectedVehicleId).brand} ${vehicles.find((vehicle) => vehicle.id === selectedVehicleId).model} • ${vehicles.find((vehicle) => vehicle.id === selectedVehicleId).plate_number}`
+                      : 'Select your vehicle'}
+                  </Text>
+                  <Text style={styles.dropdownCaret}>{showVehicleDropdown ? '▴' : '▾'}</Text>
+                </TouchableOpacity>
+
+                {selectedVehicleId && vehicles.length > 0 && (
+                  <View style={styles.selectionPillWrap}>
+                    <Text style={styles.selectionPillLabel}>Assigned vehicle</Text>
+                    <View style={styles.selectionPill}>
+                      <Text style={styles.selectionPillText}>
+                        {vehicles.find((vehicle) => vehicle.id === selectedVehicleId)?.brand || ''} {vehicles.find((vehicle) => vehicle.id === selectedVehicleId)?.model || ''}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {showVehicleDropdown && vehicles.length > 0 && (
+                  <View style={styles.dropdownMenu}>
+                    <ScrollView nestedScrollEnabled style={{ maxHeight: 220 }}>
+                      {vehicles.map((vehicle) => (
+                        <TouchableOpacity
+                          key={vehicle.id}
+                          style={[
+                            styles.dropdownItem,
+                            selectedVehicleId === vehicle.id && styles.dropdownItemSelected,
+                          ]}
+                          onPress={() => {
+                            setSelectedVehicleId(vehicle.id);
+                            setShowVehicleDropdown(false);
+                          }}
+                        >
+                          <Text style={styles.dropdownItemText}>
+                            {vehicle.brand} {vehicle.model} • {vehicle.plate_number}
+                          </Text>
+                          <Text style={styles.dropdownItemSubText}>{vehicle.color} • {vehicle.year_model}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Services</Text>
+                <TouchableOpacity
+                  style={styles.dropdownBox}
+                  onPress={() => setShowServiceDropdown((prev) => !prev)}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.dropdownText}>
+                    {selected.length > 0
+                      ? `${selected.length} service${selected.length > 1 ? 's' : ''} selected`
+                      : 'Select service'}
+                  </Text>
+                  <Text style={styles.dropdownCaret}>{showServiceDropdown ? '▴' : '▾'}</Text>
+                </TouchableOpacity>
+
+                {showServiceDropdown && (
+                  <View style={styles.dropdownMenu}>
+                    <ScrollView nestedScrollEnabled style={{ maxHeight: 240 }}>
+                      {services.map((item) => {
+                        const isSelected = !!selected.find((s) => s.id === item.id);
+                        return (
+                          <TouchableOpacity
+                            key={String(item.id)}
+                            style={[
+                              styles.dropdownItem,
+                              isSelected && styles.dropdownItemSelected,
+                            ]}
+                            onPress={() => {
+                              toggleService(item);
+                            }}
+                          >
+                            <View style={styles.dropdownItemRow}>
+                              <View style={styles.dropdownItemContent}>
+                                <Text style={styles.dropdownItemText}>{item.name}</Text>
+                                <Text style={styles.dropdownItemSubText} numberOfLines={1}>{item.description}</Text>
+                              </View>
+                              <View style={styles.servicePriceBox}>
+                                <Text style={styles.servicePriceBoxText}>{item.price ? `₱${item.price}` : 'Call'}</Text>
+                                <Text style={styles.checkbox}>{isSelected ? '✓' : ''}</Text>
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {selected.length > 0 && (
+                  <View style={styles.selectionPillWrap}>
+                    <Text style={styles.selectionPillLabel}>Selected services</Text>
+                    <View style={styles.selectionPillGrid}>
+                      {selected.map((service) => (
+                        <View key={service.id} style={styles.selectionPill}>
+                          <Text style={styles.selectionPillText}>{service.name}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* Calendar Section */}
@@ -430,8 +549,25 @@ const Booking = ({ navigate, routeParams }) => {
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#ffffff' },
-  container: { flex: 1, backgroundColor: '#ffffff' },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#ebe2d7',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#f6f1ea',
+    width: '100%',
+    maxWidth: 430,
+    alignSelf: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 8,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#dfcdb3',
+  },
   centered: { justifyContent: 'center', alignItems: 'center' },
   loadingText: { marginTop: 16, color: '#4b5563', fontSize: 16, fontWeight: '500' },
   
@@ -441,14 +577,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between', 
     alignItems: 'center', 
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 18,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#eadcc8',
+    backgroundColor: '#f8f5f0',
   },
   headerTitle: { 
     fontSize: 24, 
     fontWeight: '800', 
-    color: '#1f2937',
+    color: '#2a241f',
     letterSpacing: -0.5,
   },
   closeButton: { 
@@ -457,45 +594,157 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     alignItems: 'center',
     borderRadius: 18,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#efe6dc',
+    borderWidth: 1,
+    borderColor: '#dcc8b0',
   },
-  closeIcon: { fontSize: 20, color: '#4b5563', fontWeight: '600' },
+  closeIcon: { fontSize: 20, color: '#54473d', fontWeight: '600' },
 
   /* Scroll Content */
-  scrollContent: { paddingHorizontal: 16 },
+  scrollContent: { paddingHorizontal: 16, paddingBottom: 110 },
 
   /* Section */
-  section: { marginTop: 24, marginBottom: 8 },
+  section: { marginTop: 22, marginBottom: 8 },
   sectionTitle: { 
     fontSize: 18, 
     fontWeight: '700', 
-    color: '#1f2937',
-    marginBottom: 16,
+    color: '#2d261f',
+    marginBottom: 12,
     letterSpacing: -0.3,
   },
 
-  /* Service Row */
-  serviceRow: { 
-    backgroundColor: '#f9fafb', 
-    padding: 14, 
-    borderRadius: 14, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
+  dropdownBox: {
+    backgroundColor: '#fffdfb',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e9dcc5',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  dropdownText: {
+    color: '#2a241f',
+    fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
+  },
+  dropdownCaret: {
+    color: '#5b4636',
+    fontSize: 18,
+    fontWeight: '700',
+    marginLeft: 10,
+  },
+  dropdownMenu: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#eadcc8',
+    marginTop: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3efe9',
+  },
+  dropdownItemSelected: {
+    backgroundColor: '#f7efe6',
+  },
+  dropdownItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dropdownItemContent: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  dropdownItemText: {
+    color: '#1f2937',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  dropdownItemSubText: {
+    color: '#6b7280',
+    fontSize: 12,
+    marginTop: 3,
+  },
+  selectionPillWrap: {
+    marginTop: 12,
+  },
+  selectionPillLabel: {
+    color: '#7a6759',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  selectionPillGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -4,
+  },
+  selectionPill: {
+    backgroundColor: '#efe2d0',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#dcc8b0',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  selectionPillText: {
+    color: '#3d3029',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  servicePriceBox: {
+    alignItems: 'flex-end',
+    minWidth: 64,
+  },
+  servicePriceBoxText: {
+    color: '#1f2937',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  checkbox: { color: '#9a7b53', fontWeight: '900', marginTop: 4, fontSize: 16 },
+
+  /* Service Row */
+  serviceRow: {
+    backgroundColor: '#f9fafb',
+    padding: 14,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#eadcc8',
     width: '100%',
   },
-  serviceRowSelected: { 
-    borderColor: '#3b82f6',
-    backgroundColor: '#eff6ff',
+  serviceRowSelected: {
+    borderColor: '#9a7b53',
+    backgroundColor: '#f8f3eb',
   },
   serviceLeft: { flex: 1, paddingRight: 12 },
   serviceName: { color: '#1f2937', fontWeight: '700', fontSize: 15 },
   serviceDesc: { color: '#6b7280', fontSize: 13, marginTop: 4 },
   serviceRight: { alignItems: 'flex-end', minWidth: 80 },
   servicePrice: { color: '#1f2937', fontWeight: '800', fontSize: 16 },
-  checkbox: { color: '#3b82f6', fontWeight: '900', marginTop: 6, fontSize: 18 },
 
   /* Modern Date Picker */
   dateScrollContainer: {
@@ -503,23 +752,23 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   dateCard: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#fffdfb',
     borderRadius: 16,
     paddingVertical: 16,
     paddingHorizontal: 20,
     marginRight: 12,
     minWidth: 70,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
+    borderWidth: 1,
+    borderColor: '#ead7ba',
     position: 'relative',
   },
   dateCardSelected: {
-    backgroundColor: '#1f2937',
-    borderColor: '#3b82f6',
-    shadowColor: '#3b82f6',
+    backgroundColor: '#2d261f',
+    borderColor: '#c89d5e',
+    shadowColor: '#2d261f',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.18,
     shadowRadius: 8,
     elevation: 4,
   },
@@ -613,15 +862,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fffdfb',
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 24,
+    paddingTop: 14,
+    paddingBottom: 22,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: '#eadcc8',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.06,
     shadowRadius: 12,
     elevation: 8,
   },
@@ -630,16 +879,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  summaryLabel: { color: '#6b7280', fontSize: 12, fontWeight: '600', marginBottom: 6 },
-  summaryPrice: { color: '#1f2937', fontSize: 24, fontWeight: '800' },
+  summaryLabel: { color: '#7a6759', fontSize: 12, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  summaryPrice: { color: '#2a241f', fontSize: 24, fontWeight: '800' },
   bookButton: { 
-    backgroundColor: '#1f2937', 
+    backgroundColor: '#2d261f', 
     paddingVertical: 14, 
-    paddingHorizontal: 28, 
-    borderRadius: 12,
-    shadowColor: '#1f2937',
+    paddingHorizontal: 26, 
+    borderRadius: 14,
+    shadowColor: '#2d261f',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.14,
     shadowRadius: 8,
     elevation: 4,
   },

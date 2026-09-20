@@ -23,120 +23,119 @@ const STATUS_STEPS = [
   { key: 'completed', label: 'Completed', icon: 'verified' },
 ];
 
+const normalizeBookingStatus = (status) => {
+  if (!status) return null;
+
+  const value = String(status).trim().toLowerCase();
+  if (!value) return null;
+
+  const aliases = {
+    pending: 'pending',
+    awaiting: 'pending',
+    wait: 'pending',
+    approved: 'accepted',
+    accepted: 'accepted',
+    confirmed: 'accepted',
+    assign: 'assigned',
+    assigned: 'assigned',
+    in_progress: 'assigned',
+    inprogress: 'assigned',
+    processing: 'assigned',
+    ongoing: 'assigned',
+    completed: 'completed',
+    done: 'completed',
+    finished: 'completed',
+    success: 'completed',
+    cancelled: 'cancelled',
+    cancel: 'cancelled',
+    rejected: 'cancelled',
+  };
+
+  return aliases[value] || value;
+};
+
+const formatBookingStatus = (status) => {
+  const normalized = normalizeBookingStatus(status);
+
+  if (!normalized) return 'Pending';
+
+  const labels = {
+    pending: 'Pending',
+    accepted: 'Accepted',
+    assigned: 'Assigned',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+  };
+
+  return labels[normalized] || normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
+
 const BookingProgressTracker = ({ status }) => {
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const successScaleAnim = useRef(new Animated.Value(0)).current;
+  const normalizedStatus = normalizeBookingStatus(status);
+  const currentStepIndex = normalizedStatus
+    ? STATUS_STEPS.findIndex((step) => step.key === normalizedStatus)
+    : -1;
 
-  const currentStepIndex = STATUS_STEPS.findIndex(step => step.key === status?.toLowerCase());
-  const validIndex = currentStepIndex >= 0 ? currentStepIndex : 0;
-
-  useEffect(() => {
-    progressAnim.setValue(0);
-    glowAnim.setValue(0);
-    pulseAnim.setValue(1);
-    successScaleAnim.setValue(0);
-
-    Animated.timing(progressAnim, {
-      toValue: validIndex,
-      duration: 800,
-      useNativeDriver: false,
-    }).start();
-
-    if (status?.toLowerCase() !== 'completed') {
-      glowAnim.setValue(0);
-      const glowAnimation = Animated.loop(
-        Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: false,
-        })
-      );
-      glowAnimation.start();
-
-      return () => {
-        glowAnimation.stop();
-      };
-    } else {
-      Animated.spring(successScaleAnim, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [status, validIndex]);
-
-  const stepWidth = (Dimensions.get('window').width - 48) / 3;
+  const safeIndex = currentStepIndex >= 0 ? currentStepIndex : -1;
+  const progressPercent = safeIndex >= 0 ? ((safeIndex + 1) / STATUS_STEPS.length) * 100 : 0;
+  const isCompleted = normalizedStatus === 'completed';
 
   return (
     <View style={styles.progressContainer}>
       <View style={styles.progressTrack}>
         <View style={styles.lineLayer}>
           <View style={styles.lineBackgroundFull} />
-          <Animated.View
+          <View
             style={[
               styles.lineProgressFull,
-              {
-                width: Animated.multiply(progressAnim, (Dimensions.get('window').width - 32) / 2),
-              },
+              { width: `${progressPercent}%` },
             ]}
           />
-          {status?.toLowerCase() !== 'completed' && (
-            <Animated.View
+          {!isCompleted && safeIndex >= 0 && (
+            <View
               style={[
                 styles.glowLight,
-                {
-                  left: Animated.multiply(glowAnim, (Dimensions.get('window').width - 32) / 2),
-                },
+                { left: `${Math.max(progressPercent - 10, 0)}%` },
               ]}
             />
           )}
         </View>
 
         {STATUS_STEPS.map((step, index) => {
-          const isCompleted = index <= validIndex;
-          const isCurrent = index === validIndex;
+          const isCompletedStep = index <= safeIndex;
+          const isCurrentStep = index === safeIndex;
 
           return (
             <View key={step.key} style={styles.stepWrapper}>
-              <Animated.View
+              <View
                 style={[
                   styles.stepCircle,
-                  isCompleted && styles.stepCircleActive,
-                  !isCompleted && styles.stepCircleInactive,
+                  isCompletedStep && styles.stepCircleActive,
+                  !isCompletedStep && styles.stepCircleInactive,
+                  isCurrentStep && styles.stepCircleCurrent,
                 ]}
               >
                 <Icon
                   name={step.icon}
-                  size={20}
-                  color={isCompleted ? '#2563eb' : '#9ca3af'}
+                  size={18}
+                  color={isCompletedStep ? '#ffffff' : '#94a3b8'}
                 />
-              </Animated.View>
+              </View>
 
               <Text
                 style={[
                   styles.stepLabel,
-                  isCompleted && styles.stepLabelActive,
-                  !isCompleted && styles.stepLabelInactive,
+                  isCompletedStep && styles.stepLabelActive,
+                  !isCompletedStep && styles.stepLabelInactive,
                 ]}
               >
                 {step.label}
               </Text>
 
-              {isCurrent && status?.toLowerCase() === 'completed' && (
-                <Animated.View
-                  style={[
-                    styles.successBadge,
-                    {
-                      transform: [{ scale: successScaleAnim }],
-                      opacity: successScaleAnim,
-                    },
-                  ]}
-                >
-                  <Icon name="check" size={16} color="#ffffff" />
-                </Animated.View>
+              {isCurrentStep && isCompleted && (
+                <View style={styles.successBadge}>
+                  <Icon name="check" size={14} color="#ffffff" />
+                </View>
               )}
             </View>
           );
@@ -146,7 +145,7 @@ const BookingProgressTracker = ({ status }) => {
   );
 };
 
-const BookingItem = ({ booking, onShowCostBreakdown, onRate }) => {
+const BookingItem = ({ booking, onShowCostBreakdown, onRate, expanded, onToggle }) => {
   const displayDate = (() => {
     const d = booking?.date;
     if (!d) return 'N/A';
@@ -158,6 +157,8 @@ const BookingItem = ({ booking, onShowCostBreakdown, onRate }) => {
     const year = dt.getFullYear();
     return `${day} ${monthName} ${year}`;
   })();
+
+  const bookingStatusLabel = formatBookingStatus(booking.status);
 
   const serviceAmount = (() => {
     if (!booking.services || !booking.services.length) return 0;
@@ -175,7 +176,6 @@ const BookingItem = ({ booking, onShowCostBreakdown, onRate }) => {
   const paidAmount = (() => {
     let total = 0;
 
-    // Calculate from online payments
     if (booking.payments && booking.payments.length) {
       total += booking.payments.reduce((sum, payment) => {
         if (payment.status === 'paid') {
@@ -186,7 +186,6 @@ const BookingItem = ({ booking, onShowCostBreakdown, onRate }) => {
       }, 0);
     }
 
-    // Calculate from manual payments
     if (booking.manual_payments && booking.manual_payments.length) {
       total += booking.manual_payments.reduce((sum, payment) => {
         const amount = Number(payment.amount) || 0;
@@ -204,119 +203,150 @@ const BookingItem = ({ booking, onShowCostBreakdown, onRate }) => {
     return 'unpaid';
   })();
 
+  const handleCardPress = () => {
+    onToggle(booking.id);
+  };
+
+  const handleRatePress = () => {
+    onRate(booking);
+  };
+
   return (
-    <TouchableOpacity style={styles.bookingCard} onPress={() => onRate(booking)} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.bookingCard} onPress={handleCardPress} activeOpacity={0.8}>
       <View style={styles.bookingHeader}>
         <View>
           <Text style={styles.bookingTitle}>Booking #{booking.id}</Text>
           <Text style={styles.bookingDate}>{displayDate}</Text>
         </View>
         <View style={styles.statusBadge}>
-          <Text style={styles.bookingStatus}>{booking.status || 'pending'}</Text>
+          <Text style={styles.bookingStatus}>{bookingStatusLabel}</Text>
         </View>
       </View>
 
-      {booking.rating != null && (
-        <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>Rating:</Text>
-          <View style={styles.ratingContainer}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Icon key={star} name="star" size={16} color={star <= booking.rating ? '#fbbf24' : '#d1d5db'} />
-            ))}
-          </View>
+      {!expanded && (
+        <View style={styles.collapsedRow}>
+          <Text style={styles.collapsedText}>Tap to view details</Text>
+          <Icon name="expand-more" size={18} color="#475569" />
         </View>
       )}
 
-      <View style={styles.costSection}>
-        <View style={styles.costRow}>
-          <Text style={styles.costLabel}>Service Cost</Text>
-          <Text style={styles.costValue}>{`₱${Number(serviceAmount).toFixed(2)}`}</Text>
-        </View>
-        {productCost > 0 && (
-          <View style={styles.costRow}>
-            <Text style={styles.costLabel}>Product Cost</Text>
-            <Text style={[styles.costValue, styles.productCostValue]}>{`₱${Number(productCost).toFixed(2)}`}</Text>
-          </View>
-        )}
-        <View style={[styles.costRow, styles.totalCostRow]}>
-          <Text style={styles.totalCostLabel}>Total</Text>
-          <TouchableOpacity onPress={() => onShowCostBreakdown(booking.id)}>
-            <Text style={[styles.totalCostValue, styles.clickableValue]}>{`₱${Number(totalAmount).toFixed(2)}`}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.paymentSection}>
-        <View style={styles.paymentRow}>
-          <Text style={styles.paymentLabel}>Status</Text>
-          <View style={[
-            styles.paymentBadge,
-            paymentStatus === 'paid' && styles.paymentBadgePaid,
-            paymentStatus === 'partial' && styles.paymentBadgePartial,
-            paymentStatus === 'unpaid' && styles.paymentBadgeUnpaid,
-          ]}>
-            <Text style={[
-              styles.paymentBadgeText,
-              paymentStatus === 'paid' && styles.paymentBadgeTextPaid,
-              paymentStatus === 'partial' && styles.paymentBadgeTextPartial,
-              paymentStatus === 'unpaid' && styles.paymentBadgeTextUnpaid,
-            ]}>
-              {paymentStatus === 'paid' ? 'Paid' : paymentStatus === 'partial' ? 'Partial' : 'Unpaid'}
-            </Text>
-          </View>
-        </View>
-        {paidAmount > 0 && (
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>Paid</Text>
-            <Text style={[styles.paymentValue, styles.paidAmountValue]}>{`₱${paidAmount.toFixed(2)}`}</Text>
-          </View>
-        )}
-        {balance > 0 && (
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>Balance</Text>
-            <Text style={[styles.paymentValue, styles.balanceAmountValue]}>{`₱${balance.toFixed(2)}`}</Text>
-          </View>
-        )}
-      </View>
-
-      {booking.feedback && (
-        <View style={styles.feedbackSection}>
-          <Text style={styles.feedbackLabel}>Feedback</Text>
-          <Text style={styles.feedbackText}>{booking.feedback}</Text>
-        </View>
-      )}
-
-      <View style={styles.servicesSection}>
-        <Text style={styles.servicesTitle}>Services</Text>
-        {booking.services && booking.services.length ? (
-          booking.services.map((item) => {
-            const staffName = item.job_order?.profile?.user?.name || item.job_order?.profile?.first_name && item.job_order?.profile?.last_name 
-              ? `${item.job_order.profile.first_name} ${item.job_order.profile.last_name}` 
-              : null;
-            
-            return (
-              <View key={item.id} style={styles.serviceRow}>
-                <View style={styles.serviceLeft}>
-                  <Text style={styles.serviceName}>{item.service?.name || 'Service'}</Text>
-                  <Text style={styles.serviceMeta}>{item.service?.description || 'No description'}</Text>
-                  {staffName && (
-                    <View style={styles.staffBadge}>
-                      <Text style={styles.staffIcon}>👤</Text>
-                      <Text style={styles.staffName}>{staffName}</Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.serviceRight}>
-                  <Text style={styles.serviceStatus}>{item.status || 'pending'}</Text>
-                  {item.scheduled_time ? <Text style={styles.serviceTime}>{item.scheduled_time}</Text> : null}
-                </View>
+      {expanded && (
+        <View style={styles.expandedSection}>
+          {booking.rating != null && (
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionLabel}>Rating:</Text>
+              <View style={styles.ratingContainer}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Icon key={star} name="star" size={16} color={star <= booking.rating ? '#fbbf24' : '#d1d5db'} />
+                ))}
               </View>
-            );
-          })
-        ) : (
-          <Text style={styles.emptyText}>No services added yet.</Text>
-        )}
-      </View>
+            </View>
+          )}
+
+          <View style={styles.costSection}>
+            <View style={styles.costRow}>
+              <Text style={styles.costLabel}>Service Cost</Text>
+              <Text style={styles.costValue}>{`₱${Number(serviceAmount).toFixed(2)}`}</Text>
+            </View>
+            {productCost > 0 && (
+              <View style={styles.costRow}>
+                <Text style={styles.costLabel}>Product Cost</Text>
+                <Text style={[styles.costValue, styles.productCostValue]}>{`₱${Number(productCost).toFixed(2)}`}</Text>
+              </View>
+            )}
+            <View style={[styles.costRow, styles.totalCostRow]}>
+              <Text style={styles.totalCostLabel}>Total</Text>
+              <TouchableOpacity onPress={() => onShowCostBreakdown(booking.id)}>
+                <Text style={[styles.totalCostValue, styles.clickableValue]}>{`₱${Number(totalAmount).toFixed(2)}`}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.paymentSection}>
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>Status</Text>
+              <View style={[
+                styles.paymentBadge,
+                paymentStatus === 'paid' && styles.paymentBadgePaid,
+                paymentStatus === 'partial' && styles.paymentBadgePartial,
+                paymentStatus === 'unpaid' && styles.paymentBadgeUnpaid,
+              ]}>
+                <Text style={[
+                  styles.paymentBadgeText,
+                  paymentStatus === 'paid' && styles.paymentBadgeTextPaid,
+                  paymentStatus === 'partial' && styles.paymentBadgeTextPartial,
+                  paymentStatus === 'unpaid' && styles.paymentBadgeTextUnpaid,
+                ]}>
+                  {paymentStatus === 'paid' ? 'Paid' : paymentStatus === 'partial' ? 'Partial' : 'Unpaid'}
+                </Text>
+              </View>
+            </View>
+            {paidAmount > 0 && (
+              <View style={styles.paymentRow}>
+                <Text style={styles.paymentLabel}>Paid</Text>
+                <Text style={[styles.paymentValue, styles.paidAmountValue]}>{`₱${paidAmount.toFixed(2)}`}</Text>
+              </View>
+            )}
+            {balance > 0 && (
+              <View style={styles.paymentRow}>
+                <Text style={styles.paymentLabel}>Balance</Text>
+                <Text style={[styles.paymentValue, styles.balanceAmountValue]}>{`₱${balance.toFixed(2)}`}</Text>
+              </View>
+            )}
+          </View>
+
+          {booking.feedback && (
+            <View style={styles.feedbackSection}>
+              <Text style={styles.feedbackLabel}>Feedback</Text>
+              <Text style={styles.feedbackText}>{booking.feedback}</Text>
+            </View>
+          )}
+
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.rateButton} onPress={handleRatePress}>
+              <Icon name="star-rate" size={16} color="#ffffff" />
+              <Text style={styles.rateButtonText}>Rate Booking</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.servicesSection}>
+            <Text style={styles.servicesTitle}>Services</Text>
+            {booking.services && booking.services.length ? (
+              booking.services.map((item) => {
+                const staffName = item.job_order?.profile?.user?.name || item.job_order?.profile?.first_name && item.job_order?.profile?.last_name 
+                  ? `${item.job_order.profile.first_name} ${item.job_order.profile.last_name}` 
+                  : null;
+
+                return (
+                  <View key={item.id} style={styles.serviceRow}>
+                    <View style={styles.serviceLeft}>
+                      <Text style={styles.serviceName}>{item.service?.name || 'Service'}</Text>
+                      <Text style={styles.serviceMeta}>{item.service?.description || 'No description'}</Text>
+                      {staffName && (
+                        <View style={styles.staffBadge}>
+                          <Text style={styles.staffIcon}>👤</Text>
+                          <Text style={styles.staffName}>{staffName}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.serviceRight}>
+                      <Text style={styles.serviceStatus}>{item.status || 'pending'}</Text>
+                      {item.scheduled_time ? <Text style={styles.serviceTime}>{item.scheduled_time}</Text> : null}
+                    </View>
+                  </View>
+                );
+              })
+            ) : (
+              <Text style={styles.emptyText}>No services added yet.</Text>
+            )}
+          </View>
+
+          <View style={styles.collapsedRow}>
+            <Text style={styles.collapsedText}>Tap to hide details</Text>
+            <Icon name="expand-less" size={18} color="#475569" />
+          </View>
+        </View>
+      )}
     </TouchableOpacity>
   );
 };
@@ -340,6 +370,7 @@ const BookingHistoryScreen = ({ navigate }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [expandedId, setExpandedId] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState('');
@@ -512,7 +543,15 @@ const BookingHistoryScreen = ({ navigate }) => {
           <FlatList
             data={filtered}
             keyExtractor={(item) => String(item.id)}
-            renderItem={({ item }) => <BookingItem booking={item} onShowCostBreakdown={handleShowCostBreakdown} onRate={handleOpenRatingModal} />}
+            renderItem={({ item }) => (
+              <BookingItem
+                booking={item}
+                onShowCostBreakdown={handleShowCostBreakdown}
+                onRate={handleOpenRatingModal}
+                expanded={expandedId === item.id}
+                onToggle={(id) => setExpandedId((prev) => (prev === id ? null : id))}
+              />
+            )}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             ListEmptyComponent={() => (
               <View style={styles.emptyContainer}>
@@ -801,6 +840,44 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     textTransform: 'capitalize',
   },
+  collapsedRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  collapsedText: {
+    color: '#475569',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  expandedSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  actionRow: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  rateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2563eb',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 6,
+  },
+  rateButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   sectionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1070,22 +1147,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   progressContainer: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginBottom: 2,
   },
   progressTrack: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     position: 'relative',
-    height: 60,
+    height: 74,
+    paddingTop: 0,
   },
   lineLayer: {
     position: 'absolute',
-    top: 20,
-    left: 0,
-    right: 0,
+    top: 18,
+    left: 28,
+    right: 28,
     height: 4,
+    borderRadius: 4,
+    overflow: 'visible',
   },
   lineBackgroundFull: {
     position: 'absolute',
@@ -1093,8 +1174,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 4,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 2,
+    backgroundColor: '#dfe7f7',
+    borderRadius: 4,
   },
   lineProgressFull: {
     position: 'absolute',
@@ -1102,7 +1183,8 @@ const styles = StyleSheet.create({
     left: 0,
     height: 4,
     backgroundColor: '#2563eb',
-    borderRadius: 2,
+    borderRadius: 4,
+    zIndex: 1,
   },
   stepWrapper: {
     alignItems: 'center',
@@ -1110,65 +1192,81 @@ const styles = StyleSheet.create({
     flex: 1,
     zIndex: 2,
     flexDirection: 'column',
+    justifyContent: 'flex-start',
   },
   stepCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 2,
+    zIndex: 3,
+    borderWidth: 2,
+    borderColor: '#dfe7f7',
+    backgroundColor: '#ffffff',
+    shadowColor: '#94a3b8',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+  },
+  stepCircleCurrent: {
+    transform: [{ scale: 1.03 }],
   },
   stepCircleActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
     shadowColor: '#2563eb',
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.25,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 4,
   },
   stepCircleInactive: {
+    backgroundColor: '#ffffff',
   },
   glowLight: {
     position: 'absolute',
-    top: -2,
-    width: 50,
-    height: 8,
+    top: 0,
+    width: 40,
+    height: 4,
     borderRadius: 4,
-    backgroundColor: '#60a5fa',
+    backgroundColor: '#93c5fd',
     shadowColor: '#60a5fa',
-    shadowOpacity: 1,
+    shadowOpacity: 0.7,
     shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 15,
-    elevation: 12,
+    shadowRadius: 10,
+    zIndex: 2,
   },
   stepLabel: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 11,
+    fontWeight: '700',
     textAlign: 'center',
     width: '100%',
-    marginTop: 8,
+    marginTop: 7,
+    letterSpacing: 0.1,
+    lineHeight: 14,
   },
   stepLabelActive: {
-    color: '#2563eb',
+    color: '#1d4ed8',
   },
   stepLabelInactive: {
-    color: '#9ca3af',
+    color: '#94a3b8',
   },
   successBadge: {
     position: 'absolute',
     top: -4,
-    right: -4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    right: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: '#22c55e',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#22c55e',
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.4,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 3,
   },
   clickableValue: {
     color: '#2563eb',
