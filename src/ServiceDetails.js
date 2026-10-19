@@ -4,7 +4,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
   TouchableOpacity,
   ScrollView,
   Dimensions,
@@ -15,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BASE_URL, fixImageUrl } from '../api';
 import { getRequest, getToken } from '../api';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Loading from '../loading/loading';
 
 const ServiceDetails = ({ id, service: initialService, navigate }) => {
   const insets = useSafeAreaInsets();
@@ -85,6 +85,11 @@ const ServiceDetails = ({ id, service: initialService, navigate }) => {
   };
 
   const calculateOverallRating = () => {
+    // Use the average_rating from the API response if available
+    if (service?.average_rating !== undefined) {
+      return service.average_rating > 0 ? service.average_rating.toFixed(1) : '0.0';
+    }
+    // Fallback to manual calculation from completed services
     if (completedServices.length === 0) return service?.rating || '0.0';
     const totalRating = completedServices.reduce((sum, item) => sum + (item.rating || 0), 0);
     const avgRating = totalRating / completedServices.length;
@@ -154,7 +159,7 @@ const ServiceDetails = ({ id, service: initialService, navigate }) => {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={[styles.container, styles.centered]}>
-          <ActivityIndicator size="large" color="#1f2937" />
+          <Loading message="Loading service details" />
         </View>
       </SafeAreaView>
     );
@@ -179,16 +184,17 @@ const ServiceDetails = ({ id, service: initialService, navigate }) => {
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 140, paddingTop: insets.top + 16 }}>
         <View style={styles.headerCard}>
           <TouchableOpacity onPress={() => navigate && navigate('services')} style={styles.iconBack}>
-            <MaterialCommunityIcons name="arrow-left" size={20} color="#1f2937" />
+            <MaterialCommunityIcons name="arrow-left" size={20} color="#FFFFFF" />
           </TouchableOpacity>
 
           <View style={styles.headerContent}>
             <View style={styles.headerTextWrap}>
+              <Text style={styles.headerEyebrow}>SERVICE OVERVIEW</Text>
               <Text style={styles.title}>{service?.name}</Text>
               <Text style={styles.subTitle}>{service?.category?.name || 'Service details'}</Text>
               <View style={styles.metaRow}>
                 <View style={styles.metaPill}>
-                  <MaterialCommunityIcons name="clock-outline" size={14} color="#3b82f6" />
+                  <MaterialCommunityIcons name="clock-outline" size={14} color="#2563EB" />
                   <Text style={styles.metaText}>{service?.duration || '30m'}</Text>
                 </View>
                 <View style={styles.metaPill}>
@@ -219,7 +225,7 @@ const ServiceDetails = ({ id, service: initialService, navigate }) => {
           <Text style={styles.sectionTitle}>Completed Services</Text>
           {loadingServices ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#1e40af" />
+              <Loading message="Loading completed services" compact />
             </View>
           ) : completedServices.length > 0 ? (
             <FlatList
@@ -252,45 +258,38 @@ const ServiceDetails = ({ id, service: initialService, navigate }) => {
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#ebe2d7' },
+  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
   container: {
     flex: 1,
     paddingHorizontal: 16,
-    backgroundColor: '#f6f1ea',
+    backgroundColor: '#F5F7FB',
     width: '100%',
     maxWidth: 430,
     alignSelf: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 8,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: '#dfcdb3',
   },
   centered: { justifyContent: 'center', alignItems: 'center' },
   headerCard: {
-    backgroundColor: '#f8f5f0',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#eadcc8',
+    backgroundColor: '#4F46E5',
+    borderRadius: 24,
+    padding: 20,
+    paddingTop: 58,
+    marginBottom: 14,
+    overflow: 'hidden',
   },
-  title: { color: '#2a241f', fontSize: 24, fontWeight: '800', marginBottom: 6, letterSpacing: -0.5 },
-  subTitle: { color: '#6b7280', fontSize: 14, fontWeight: '500' },
+  headerEyebrow: { color: '#C7D2FE', fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 8 },
+  title: { color: '#FFFFFF', fontSize: 25, fontWeight: '800', marginBottom: 6, letterSpacing: -0.6 },
+  subTitle: { color: '#E0E7FF', fontSize: 14, fontWeight: '500' },
   detailCard: {
-    backgroundColor: '#fffdfb',
-    borderRadius: 18,
-    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
     borderWidth: 1,
-    borderColor: '#e9dcc5',
+    borderColor: '#E8EDF5',
   },
-  sectionTitle: { color: '#1f2937', fontSize: 16, fontWeight: '700', marginBottom: 8 },
-  sectionText: { color: '#6b7280', fontSize: 14, lineHeight: 22 },
+  sectionTitle: { color: '#0F172A', fontSize: 16, fontWeight: '800', marginBottom: 8 },
+  sectionText: { color: '#64748B', fontSize: 14, lineHeight: 22 },
   actionButton: {
-    backgroundColor: '#1f2937',
+    backgroundColor: '#2563EB',
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
@@ -299,34 +298,34 @@ const styles = StyleSheet.create({
   actionText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   iconBack: {
     position: 'absolute',
-    top: 8,
-    left: 8,
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#efe6dc',
+    top: 16,
+    left: 16,
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.16)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
     borderWidth: 1,
-    borderColor: '#dcc8b0',
+    borderColor: 'rgba(255,255,255,0.24)',
   },
-  backButton: { marginTop: 12, padding: 12, backgroundColor: '#f3f4f6', borderRadius: 12 },
-  backText: { color: '#1f2937', fontWeight: '600' },
+  backButton: { marginTop: 12, padding: 12, backgroundColor: '#EFF5FF', borderRadius: 12 },
+  backText: { color: '#1D4ED8', fontWeight: '600' },
   headerContent: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   headerTextWrap: { flex: 1 },
   metaRow: { flexDirection: 'row', marginTop: 12, gap: 10 },
-  metaPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#efe2d0', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, gap: 6, borderWidth: 1, borderColor: '#dcc8b0' },
-  metaText: { color: '#2a241f', marginLeft: 4, fontSize: 12, fontWeight: '600' },
+  metaPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.14)', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, gap: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  metaText: { color: '#FFFFFF', marginLeft: 4, fontSize: 12, fontWeight: '700' },
   rowSplit: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  priceText: { color: '#2a241f', fontSize: 20, fontWeight: '800', marginTop: 8 },
+  priceText: { color: '#4F46E5', fontSize: 23, fontWeight: '800', marginTop: 8 },
   rightBlock: { alignItems: 'flex-end' },
-  availabilityLabel: { backgroundColor: '#efe2d0', color: '#3d3029', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, fontWeight: '700', fontSize: 12, borderWidth: 1, borderColor: '#dcc8b0' },
-  stickyFooter: { position: 'absolute', left: 0, right: 0, bottom: 18, paddingHorizontal: 16 },
-  bookButton: { backgroundColor: '#2d261f', borderRadius: 14, paddingVertical: 16, alignItems: 'center', shadowColor: '#2d261f', shadowOpacity: 0.12, shadowOffset: { width: 0, height: 4 }, shadowRadius: 12, elevation: 4 },
+  availabilityLabel: { backgroundColor: '#ECFDF3', color: '#15803D', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, fontWeight: '700', fontSize: 12, borderWidth: 1, borderColor: '#BBF7D0' },
+  stickyFooter: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, backgroundColor: 'rgba(245,247,251,0.97)', borderTopWidth: 1, borderTopColor: '#E5EAF2' },
+  bookButton: { backgroundColor: '#4F46E5', borderRadius: 15, paddingVertical: 16, alignItems: 'center', shadowColor: '#4F46E5', shadowOpacity: 0.2, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10, elevation: 3 },
   bookText: { color: '#ffffff', fontSize: 16, fontWeight: '800' },
-  errorText: { color: '#1f2937', fontSize: 16, fontWeight: '700', marginBottom: 8 },
-  errorDetail: { color: '#6b7280', fontSize: 13, textAlign: 'center', paddingHorizontal: 20 },
+  errorText: { color: '#0F172A', fontSize: 16, fontWeight: '700', marginBottom: 8 },
+  errorDetail: { color: '#64748B', fontSize: 13, textAlign: 'center', paddingHorizontal: 20 },
   completedSection: {
     marginTop: 20,
   },
@@ -342,17 +341,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   serviceCard: {
-    backgroundColor: '#fffdfb',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     width: '48%',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
-    elevation: 3,
+    shadowColor: '#1E293B',
+    shadowOpacity: 0.045,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 12,
+    elevation: 2,
     borderWidth: 1,
-    borderColor: '#eadcc8',
+    borderColor: '#E8EDF5',
   },
   imageContainer: {
     width: '100%',
@@ -380,7 +379,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   ratingText: {
-    color: '#6b7280',
+    color: '#64748B',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -389,7 +388,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    color: '#9ca3af',
+    color: '#64748B',
     fontSize: 14,
   },
 });

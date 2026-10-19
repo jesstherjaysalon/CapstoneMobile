@@ -1,27 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import {
-  SafeAreaView,
   View,
   Text,
   TextInput,
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
-  Dimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { getRequest, postRequest, putRequest, deleteRequest } from '../api';
 import TabBar from './TabBar';
+import Loading from '../loading/loading';
 
 const VehicleCard = ({ vehicle, onEdit, onDelete }) => (
   <View style={styles.card}>
     <View style={styles.cardHeader}>
-      <Text style={styles.cardTitle}>{vehicle.plate_number}</Text>
-      <Text style={styles.cardSubtitle}>{vehicle.brand} {vehicle.model}</Text>
+      <View style={styles.vehicleIdentity}>
+        <View style={styles.vehicleIcon}>
+          <MaterialCommunityIcons name="car-outline" size={22} color="#2563EB" />
+        </View>
+        <View style={styles.vehicleHeading}>
+          <Text style={styles.cardSubtitle}>{vehicle.brand} {vehicle.model}</Text>
+          <Text style={styles.cardTitle}>{vehicle.plate_number}</Text>
+        </View>
+      </View>
     </View>
     <View style={styles.cardRow}>
       <Text style={styles.cardLabel}>Year</Text>
@@ -43,7 +49,6 @@ const VehicleCard = ({ vehicle, onEdit, onDelete }) => (
 );
 
 const Vehicles = ({ navigate }) => {
-  const insets = useSafeAreaInsets();
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -165,16 +170,21 @@ const Vehicles = ({ navigate }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <View style={styles.container}>
-        <View style={[styles.contentWrapper, { paddingTop: insets.top + 16 }]}>
+        <View style={styles.contentWrapper}>
           <View style={styles.titleBar}>
-            <View>
+            <View style={styles.titleCopy}>
+              <View style={styles.eyebrowRow}>
+                <MaterialCommunityIcons name="garage-variant" size={15} color="#C7D2FE" />
+                <Text style={styles.eyebrow}>YOUR GARAGE</Text>
+              </View>
               <Text style={styles.title}>My Vehicles</Text>
-              <Text style={styles.subtitle}>Keep your fleet details clean and updated.</Text>
+              <Text style={styles.subtitle}>Manage the vehicles you bring in for service.</Text>
             </View>
             <TouchableOpacity style={styles.addButton} onPress={() => openModal()}>
-              <Text style={styles.addButtonText}>+ Add Vehicle</Text>
+              <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+              <Text style={styles.addButtonText}>Add Vehicle</Text>
             </TouchableOpacity>
           </View>
 
@@ -198,28 +208,28 @@ const Vehicles = ({ navigate }) => {
 
               <TextInput
                 placeholder="Plate Number"
-                placeholderTextColor="#d1d5db"
+                placeholderTextColor="#94A3B8"
                 style={styles.input}
                 value={form.plate_number}
                 onChangeText={(text) => setForm((prev) => ({ ...prev, plate_number: text }))}
               />
               <TextInput
                 placeholder="Brand"
-                placeholderTextColor="#d1d5db"
+                placeholderTextColor="#94A3B8"
                 style={styles.input}
                 value={form.brand}
                 onChangeText={(text) => setForm((prev) => ({ ...prev, brand: text }))}
               />
               <TextInput
                 placeholder="Model"
-                placeholderTextColor="#d1d5db"
+                placeholderTextColor="#94A3B8"
                 style={styles.input}
                 value={form.model}
                 onChangeText={(text) => setForm((prev) => ({ ...prev, model: text }))}
               />
               <TextInput
                 placeholder="Year Model"
-                placeholderTextColor="#d1d5db"
+                placeholderTextColor="#94A3B8"
                 style={styles.input}
                 value={form.year_model}
                 keyboardType="numeric"
@@ -227,7 +237,7 @@ const Vehicles = ({ navigate }) => {
               />
               <TextInput
                 placeholder="Color"
-                placeholderTextColor="#d1d5db"
+                placeholderTextColor="#94A3B8"
                 style={styles.input}
                 value={form.color}
                 onChangeText={(text) => setForm((prev) => ({ ...prev, color: text }))}
@@ -242,7 +252,7 @@ const Vehicles = ({ navigate }) => {
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#1f2937" />
+            <Loading message="Loading your vehicles" />
           </View>
         ) : (
           <FlatList
@@ -268,40 +278,46 @@ const Vehicles = ({ navigate }) => {
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#ebe2d7' },
-  container: { flex: 1, backgroundColor: '#f6f1ea', width: '100%', maxWidth: 430, alignSelf: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 18, elevation: 8, borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#dfcdb3' },
-  contentWrapper: { flex: 1, paddingHorizontal: 16, paddingBottom: 90 },
-  titleBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
-  title: { color: '#2a241f', fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
-  subtitle: { color: '#6b7280', marginTop: 6, fontSize: 14, maxWidth: '65%', fontWeight: '500' },
-  addButton: { backgroundColor: '#2d261f', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, shadowColor: '#2d261f', shadowOpacity: 0.2, shadowOffset: { width: 0, height: 8 }, shadowRadius: 18, elevation: 7 },
-  addButtonText: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)', justifyContent: 'center', paddingHorizontal: 16 },
-  modalCard: { backgroundColor: '#fffdfb', borderRadius: 20, padding: 20, shadowColor: '#2d261f', shadowOpacity: 0.22, shadowRadius: 22, shadowOffset: { width: 0, height: 12 }, elevation: 14, borderWidth: 1, borderColor: '#eadcc8' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { color: '#2a241f', fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
-  modalSubtitle: { color: '#6b7280', fontSize: 13, marginTop: 6, maxWidth: '70%', fontWeight: '500' },
-  modalClose: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#efe6dc', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#dcc8b0' },
-  modalCloseText: { color: '#2a241f', fontSize: 16, fontWeight: '600' },
-  input: { backgroundColor: '#fff', color: '#1f2937', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 12, borderWidth: 1, borderColor: '#eadcc8', fontSize: 15, fontWeight: '500' },
-  saveButton: { backgroundColor: '#2d261f', paddingVertical: 14, alignItems: 'center', borderRadius: 12, marginTop: 8 },
-  saveText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: '#F5F7FB', width: '100%', maxWidth: 430, alignSelf: 'center' },
+  contentWrapper: { flex: 1, paddingHorizontal: 20, paddingBottom: 0 },
+  titleCopy: { flex: 1, paddingRight: 8 },
+  titleBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: -20, marginTop: 0, marginBottom: 18, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 22, backgroundColor: '#4F46E5', borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden' },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 9, gap: 6 },
+  eyebrow: { color: '#E0E7FF', fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
+  title: { color: '#FFFFFF', fontSize: 27, fontWeight: '800', letterSpacing: -0.7 },
+  subtitle: { color: '#E0E7FF', marginTop: 6, fontSize: 12, maxWidth: '95%', fontWeight: '500', lineHeight: 18 },
+  addButton: { backgroundColor: 'rgba(255,255,255,0.16)', paddingVertical: 11, paddingHorizontal: 12, borderRadius: 13, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
+  addButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.32)', justifyContent: 'center', paddingHorizontal: 16 },
+  modalCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 22, shadowColor: '#0F172A', shadowOpacity: 0.12, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 12, borderWidth: 1, borderColor: '#E8EDF5' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { color: '#0F172A', fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  modalSubtitle: { color: '#64748B', fontSize: 13, marginTop: 6, maxWidth: '70%', fontWeight: '500' },
+  modalClose: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
+  modalCloseText: { color: '#64748B', fontSize: 16, fontWeight: '600' },
+  input: { backgroundColor: '#F8FAFC', color: '#0F172A', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E3EAF4', fontSize: 15, fontWeight: '500' },
+  saveButton: { backgroundColor: '#2563EB', paddingVertical: 15, alignItems: 'center', borderRadius: 14, marginTop: 8, shadowColor: '#2563EB', shadowOpacity: 0.18, shadowOffset: { width: 0, height: 3 }, shadowRadius: 8, elevation: 3 },
+  saveText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   listContent: { paddingBottom: 30 },
-  card: { backgroundColor: '#fffdfb', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#eadcc8', shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: { width: 0, height: 6 }, shadowRadius: 16, elevation: 8 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 22, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: '#E4EAF4', shadowColor: '#1E293B', shadowOpacity: 0.055, shadowOffset: { width: 0, height: 5 }, shadowRadius: 15, elevation: 3 },
   cardHeader: { marginBottom: 10 },
-  cardTitle: { color: '#2a241f', fontSize: 16, fontWeight: '700' },
-  cardSubtitle: { color: '#6b7280', marginTop: 4, fontSize: 13, fontWeight: '500' },
-  cardRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#f3f4f6' },
-  cardLabel: { color: '#6b7280', fontSize: 13, fontWeight: '500' },
-  cardValue: { color: '#2a241f', fontSize: 14, fontWeight: '700' },
+  vehicleIdentity: { flexDirection: 'row', alignItems: 'center' },
+  vehicleIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center', marginRight: 12, borderWidth: 1, borderColor: '#E0E7FF' },
+  vehicleHeading: { flex: 1 },
+  cardTitle: { color: '#2563EB', fontSize: 12, fontWeight: '800', letterSpacing: 0.6, marginTop: 4 },
+  cardSubtitle: { color: '#0F172A', fontSize: 16, fontWeight: '700' },
+  cardRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F1F4F8' },
+  cardLabel: { color: '#64748B', fontSize: 12, fontWeight: '600' },
+  cardValue: { color: '#0F172A', fontSize: 14, fontWeight: '700' },
   cardActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 14, gap: 8 },
-  actionButton: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5d8c8' },
-  actionText: { color: '#3d3029', fontWeight: '700', fontSize: 12 },
-  deleteButton: { backgroundColor: '#fef2f2', borderColor: '#fecaca' },
-  deleteText: { color: '#dc2626' },
+  actionButton: { minWidth: 78, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, backgroundColor: '#EEF2FF', borderWidth: 1, borderColor: '#E0E7FF' },
+  actionText: { color: '#475569', fontWeight: '700', fontSize: 12 },
+  deleteButton: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
+  deleteText: { color: '#DC2626' },
   emptyState: { marginTop: 40, alignItems: 'center', paddingHorizontal: 20 },
-  emptyText: { color: '#9ca3af', fontSize: 15, lineHeight: 22, textAlign: 'center', fontWeight: '500' },
+  emptyText: { color: '#94A3B8', fontSize: 15, lineHeight: 22, textAlign: 'center', fontWeight: '500' },
 });
 
 export default Vehicles;

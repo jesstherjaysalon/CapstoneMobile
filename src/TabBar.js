@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, Animated } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const tabs = [
@@ -11,6 +12,7 @@ const tabs = [
 ];
 
 const TabBar = ({ activeTab, onTabPress, navigate, navigateOnTabPress }) => {
+  const insets = useSafeAreaInsets();
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -36,66 +38,39 @@ const TabBar = ({ activeTab, onTabPress, navigate, navigateOnTabPress }) => {
     }
   };
 
-  const leftTabs = tabs.filter(t => !t.isCenter).slice(0, 2);
-  const centerTab = tabs.find(t => t.isCenter);
-  const rightTabs = tabs.filter(t => !t.isCenter).slice(2);
-
   const renderTab = (tab) => {
     const isActive = activeTab === tab.key;
-    return (
+    const isCenter = !!tab.isCenter;
+    const tabButton = (
       <TouchableOpacity
-        key={tab.key}
-        style={[styles.tabItem, isActive && styles.tabItemActive]}
+        style={[styles.tabItem, isActive && styles.tabItemActive, isCenter && styles.bookTabItem]}
         onPress={() => handleTabPress(tab.key)}
         activeOpacity={0.7}
       >
         <MaterialCommunityIcons
-          name={tab.icon}
-          size={20}
-          color={isActive ? '#ffffff' : '#94a3b8'}
+          name={isActive ? tab.icon.replace('-outline', '') : tab.icon}
+          size={isCenter ? 22 : 21}
+          color={isActive ? '#2563EB' : '#8793A7'}
           style={styles.tabIcon}
         />
-        <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{tab.label}</Text>
+        <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{isCenter ? 'Book' : tab.label}</Text>
       </TouchableOpacity>
     );
+    return isCenter ? (
+      <Animated.View
+        key={tab.key}
+        style={[styles.animatedTab, { transform: [{ scale: scaleAnim }] }]}
+      >
+        {tabButton}
+      </Animated.View>
+    ) : tabButton;
   };
 
   return (
-    <View style={styles.tabBarContainer}>
+    <View style={[styles.tabBarContainer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       <View style={styles.tabBar}>
-        <View style={styles.tabSection}>
-          {leftTabs.map(renderTab)}
-        </View>
-
-        <View style={styles.centerTabPlaceholder} />
-
-        <View style={styles.tabSection}>
-          {rightTabs.map(renderTab)}
-        </View>
+        {tabs.map(renderTab)}
       </View>
-
-      <Animated.View
-        style={[
-          styles.centerTabButton,
-          {
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.centerTabContent}
-          onPress={() => handleTabPress('Booking')}
-          activeOpacity={0.85}
-        >
-          <View style={styles.centerTabGlow} />
-          <MaterialCommunityIcons
-            name={centerTab.icon}
-            size={28}
-            color="#ffffff"
-          />
-          <Text style={styles.centerTabLabel}>{centerTab.label}</Text>
-        </TouchableOpacity>
-      </Animated.View>
     </View>
   );
 };
@@ -103,101 +78,55 @@ const TabBar = ({ activeTab, onTabPress, navigate, navigateOnTabPress }) => {
 const styles = StyleSheet.create({
   tabBarContainer: {
     position: 'relative',
-    paddingHorizontal: 12,
-    paddingBottom: 24,
-    paddingTop: 12,
-    backgroundColor: '#ffffff',
+    paddingHorizontal: 18,
+    paddingBottom: 10,
+    paddingTop: 9,
+    backgroundColor: '#FFFFFF',
   },
   tabBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
-    backgroundColor: '#f8f7f4',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 10,
-    elevation: 4,
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    paddingHorizontal: 5,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.05)',
-  },
-  tabSection: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 2,
+    borderColor: '#E9EEF5',
+    shadowColor: '#1E293B',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 12,
+    elevation: 3,
   },
   tabItem: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    minWidth: 50,
-    flex: 1,
+    paddingHorizontal: 2,
+    borderRadius: 16,
+    minHeight: 52,
   },
   tabItemActive: {
-    backgroundColor: 'rgba(236, 72, 153, 0.12)',
+    backgroundColor: '#EFF5FF',
   },
+  animatedTab: { flex: 1 },
+  bookTabItem: {},
   tabIcon: {
-    marginBottom: 6,
+    marginBottom: 3,
   },
   tabLabel: {
-    color: '#b8b8b8',
-    fontSize: 8,
+    color: '#7B8799',
+    fontSize: 10,
     fontWeight: '600',
-    letterSpacing: 0.2,
+    letterSpacing: 0.05,
+    textAlign: 'center',
   },
   tabLabelActive: {
-    color: '#7a7a7a',
+    color: '#1D4ED8',
     fontWeight: '700',
-    fontSize: 8,
-  },
-  centerTabPlaceholder: {
-    width: 90,
-    height: 1,
-  },
-  centerTabButton: {
-    position: 'absolute',
-    bottom: 45,
-    left: '50%',
-    marginLeft: -40,
-    zIndex: 10,
-  },
-  centerTabContent: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#1e40af',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#1e40af',
-    shadowOpacity: 0.5,
-    shadowOffset: { width: 0, height: 10 },
-    shadowRadius: 18,
-    elevation: 14,
-    borderWidth: 4,
-    borderColor: '#ffffff',
-  },
-  centerTabGlow: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#1e40af',
-    opacity: 0.1,
-    zIndex: -1,
-  },
-  centerTabLabel: {
-    color: '#ffffff',
-    fontSize: 9,
-    fontWeight: '700',
-    marginTop: 6,
-    letterSpacing: 0.3,
+    fontSize: 10,
   },
 });
 

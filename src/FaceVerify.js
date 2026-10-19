@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   verifyButton: {
-    backgroundColor: '#0f172a',
+    backgroundColor: '#2563EB',
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: 'center',

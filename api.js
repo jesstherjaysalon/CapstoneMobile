@@ -2,15 +2,22 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// export const BASE_URL = "https://csms.serviceph.online/api";
 export const BASE_URL = "http://192.168.1.44:8000/api";
-
 // Utility function to replace localhost URLs with actual IP for mobile app access
 export const fixImageUrl = (imageUrl) => {
   if (!imageUrl) return null;
-  // Replace localhost variants with the actual IP
+
+  // Already a production URL
+  if (imageUrl.startsWith('https://csms.serviceph.online')) {
+    return imageUrl;
+  }
+
+  // Replace local development URLs
   return imageUrl
-    .replace('127.0.0.1', '192.168.1.44')
-    .replace('localhost', '192.168.1.44');
+    .replace('http://127.0.0.1:8000', 'https://csms.serviceph.online')
+    .replace('http://localhost:8000', 'https://csms.serviceph.online')
+    .replace('http://192.168.1.44:8000', 'https://csms.serviceph.online');
 };
 
 // Token management

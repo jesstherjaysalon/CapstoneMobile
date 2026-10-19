@@ -5,7 +5,6 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   StyleSheet,
   TextInput,
   Dimensions,
@@ -14,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRequest } from '../api';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import Loading from '../loading/loading';
 
 const STATUS_STEPS = [
   { key: 'accepted', label: 'Accepted', icon: 'check-circle' },
@@ -277,19 +277,32 @@ const BookingItem = ({ booking, expanded, onToggle }) => {
             <Text style={styles.servicesTitle}>Services</Text>
             {booking.services && booking.services.length ? (
               booking.services.map((item) => {
-                const staffName = item.job_order?.profile?.user?.name || item.job_order?.profile?.first_name && item.job_order?.profile?.last_name 
-                  ? `${item.job_order.profile.first_name} ${item.job_order.profile.last_name}` 
-                  : null;
+                // Handle multiple staff members
+                const staffList = (() => {
+                  const profiles = item.job_order?.staff || [];
+                  if (!profiles || !Array.isArray(profiles) || profiles.length === 0) return null;
+
+                  return profiles.map(profile => {
+                    const name = profile?.user?.name || (profile?.first_name && profile?.last_name
+                      ? `${profile.first_name} ${profile.last_name}`
+                      : 'Unknown Staff');
+                    return name;
+                  });
+                })();
 
                 return (
                   <View key={item.id} style={styles.serviceRow}>
                     <View style={styles.serviceLeft}>
                       <Text style={styles.serviceName}>{item.service?.name || 'Service'}</Text>
                       <Text style={styles.serviceMeta}>{item.service?.description || 'No description'}</Text>
-                      {staffName && (
-                        <View style={styles.staffBadge}>
-                          <Text style={styles.staffIcon}>👤</Text>
-                          <Text style={styles.staffName}>{staffName}</Text>
+                      {staffList && staffList.length > 0 && (
+                        <View style={styles.staffContainer}>
+                          {staffList.map((staffName, index) => (
+                            <View key={index} style={styles.staffBadge}>
+                              <Text style={styles.staffIcon}>👤</Text>
+                              <Text style={styles.staffName}>{staffName}</Text>
+                            </View>
+                          ))}
                         </View>
                       )}
                     </View>
@@ -411,8 +424,7 @@ const MyBookingsScreen = ({ navigate }) => {
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#2563eb" />
-            <Text style={styles.loadingText}>Loading your bookings...</Text>
+            <Loading message="Loading your bookings" />
           </View>
         ) : error ? (
           <View style={styles.errorContainer}>
@@ -635,10 +647,15 @@ const styles = StyleSheet.create({
     maxWidth: Dimensions.get('window').width > 380 ? 180 : 140,
     lineHeight: 16,
   },
+  staffContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 7,
+    gap: 6,
+  },
   staffBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 7,
     backgroundColor: '#f0fdf4',
     paddingHorizontal: 8,
     paddingVertical: 4,

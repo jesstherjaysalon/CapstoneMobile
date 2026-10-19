@@ -5,8 +5,8 @@
  * @format
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
-import { ActivityIndicator, StatusBar, StyleSheet, Text, useColorScheme, View, Linking } from 'react-native';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { StatusBar, StyleSheet, Text, View, Linking } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import LoginScreen from './src/Login';
 import RegisterScreen from './src/Register';
@@ -20,22 +20,34 @@ import BookingHistoryScreen from './src/BookingHistory';
 import ServiceDetails from './src/ServiceDetails';
 import Vehicles from './src/Vehicles';
 import PaymentHistory from './src/PaymentHistory';
+import StaffDashboard from './src/StaffDashboard';
+import StaffTasks from './src/StaffTasks';
+import StaffServiceAssignments from './src/StaffServiceAssignments';
+import Loading, { LoadingContext } from './loading/loading';
 import { getData, removeData, storeData } from './storageUtils';
 import { removeToken } from './api';
 
 function App() {
-  const isDarkMode = useColorScheme() === 'dark';
   const [currentScreen, setCurrentScreen] = useState('login');
   const [screenParams, setScreenParams] = useState(null);
   const [user, setUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [loadingScreen, setLoadingScreen] = useState(false);
+  const [screenLoading, setScreenLoading] = useState(false);
+  const previousRoute = useRef(null);
 
-  const validScreens = ['login', 'register', 'services', 'car', 'faceverify', 'home', 'serviceDetails', 'booking', 'payment', 'myBookings', 'bookingHistory', 'paymentHistory'];
+  const validScreens = ['login', 'register', 'services', 'car', 'faceverify', 'home', 'serviceDetails', 'booking', 'payment', 'myBookings', 'bookingHistory', 'paymentHistory', 'staffDashboard', 'staffTasks', 'staffServiceAssignments'];
 
   const isValidScreen = (screen) => validScreens.includes(screen);
 
   const getDefaultScreen = (userData) => {
-    return userData?.role === 'Customer' ? 'faceverify' : 'home';
+    if (userData?.role === 'Staff') {
+      return 'staffDashboard';
+    }
+    if (userData?.role === 'Customer') {
+      return 'home';
+    }
+    return 'home';
   };
 
   const getSafeScreen = (screen, userData, params) => {
@@ -43,12 +55,22 @@ function App() {
       return userData ? getDefaultScreen(userData) : 'login';
     }
 
-    if ((screen === 'home' || screen === 'faceverify' || screen === 'payment' || screen === 'booking' || screen === 'myBookings' || screen === 'bookingHistory' || screen === 'paymentHistory') && !userData) {
+    if ((screen === 'home' || screen === 'faceverify' || screen === 'payment' || screen === 'booking' || screen === 'myBookings' || screen === 'bookingHistory' || screen === 'paymentHistory' || screen === 'staffDashboard' || screen === 'staffTasks' || screen === 'staffServiceAssignments') && !userData) {
       return 'login';
     }
 
+    // Staff users should not access faceverify or customer screens
+    if (userData?.role === 'Staff' && (screen === 'faceverify' || screen === 'home' || screen === 'services' || screen === 'booking' || screen === 'payment' || screen === 'myBookings' || screen === 'bookingHistory' || screen === 'paymentHistory' || screen === 'car')) {
+      return 'staffDashboard';
+    }
+
+    // Customer users should not access staff screens
+    if (userData?.role === 'Customer' && (screen === 'staffDashboard' || screen === 'staffTasks' || screen === 'staffServiceAssignments')) {
+      return 'home';
+    }
+
     if (screen === 'serviceDetails' && !params?.id) {
-      return userData ? 'home' : 'login';
+      return userData ? getDefaultScreen(userData) : 'login';
     }
 
     return screen;
@@ -117,7 +139,16 @@ function App() {
 
   const handleLoginSuccess = async (userData) => {
     setUser(userData);
-    const nextScreen = userData?.requiresFaceVerification ? 'faceverify' : 'home';
+    let nextScreen;
+
+    if (userData?.role === 'Staff') {
+      nextScreen = 'staffDashboard';
+    } else if (userData?.role === 'Customer') {
+      nextScreen = userData?.requiresFaceVerification ? 'faceverify' : 'home';
+    } else {
+      nextScreen = 'home';
+    }
+
     setCurrentScreen(nextScreen);
     setScreenParams(null);
     await storeData('authState', { user: userData, currentScreen: nextScreen, screenParams: null });
@@ -145,6 +176,20 @@ function App() {
     () => getSafeScreen(currentScreen, user, screenParams),
     [currentScreen, user, screenParams],
   );
+
+  useEffect(() => {
+    if (loadingAuth) return;
+
+    const previous = previousRoute.current;
+    previousRoute.current = { screen: activeScreen, params: screenParams };
+    if (!previous || (previous.screen === activeScreen && previous.params === screenParams)) {
+      return;
+    }
+
+    setLoadingScreen(true);
+    const timeoutId = setTimeout(() => setLoadingScreen(false), 800);
+    return () => clearTimeout(timeoutId);
+  }, [activeScreen, screenParams, loadingAuth]);
 
   const renderScreen = () => {
     switch (activeScreen) {
@@ -188,8 +233,16 @@ function App() {
               delete verifiedUser.pendingToken;
               delete verifiedUser.requiresFaceVerification;
               setUser(verifiedUser);
-              await setScreen('home');
-              await storeData('authState', { user: verifiedUser, currentScreen: 'home', screenParams: null });
+
+              let nextScreen;
+              if (verifiedUser?.role === 'Staff') {
+                nextScreen = 'staffDashboard';
+              } else {
+                nextScreen = 'home';
+              }
+
+              await setScreen(nextScreen);
+              await storeData('authState', { user: verifiedUser, currentScreen: nextScreen, screenParams: null });
             }}
             onCancel={handleLogout}
           />
@@ -214,6 +267,33 @@ function App() {
         ) : (
           <HomeScreen user={user} onLogout={handleLogout} navigate={setScreen} />
         );
+      case 'staffDashboard':
+        return user ? (
+          <StaffDashboard navigate={setScreen} />
+        ) : (
+          <LoginScreen
+            onNavigateToRegister={() => setCurrentScreen('register')}
+            onLoginSuccess={handleLoginSuccess}
+          />
+        );
+      case 'staffTasks':
+        return user ? (
+          <StaffTasks navigate={setScreen} />
+        ) : (
+          <LoginScreen
+            onNavigateToRegister={() => setCurrentScreen('register')}
+            onLoginSuccess={handleLoginSuccess}
+          />
+        );
+      case 'staffServiceAssignments':
+        return user ? (
+          <StaffServiceAssignments navigate={setScreen} />
+        ) : (
+          <LoginScreen
+            onNavigateToRegister={() => setCurrentScreen('register')}
+            onLoginSuccess={handleLoginSuccess}
+          />
+        );
       default:
         return (
           <View style={styles.fallbackContainer}>
@@ -225,14 +305,22 @@ function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      {loadingAuth ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+      <LoadingContext.Provider value={setScreenLoading}>
+        <StatusBar
+          hidden={false}
+          barStyle="dark-content"
+          backgroundColor={loadingAuth || loadingScreen || screenLoading ? '#F3F7FD' : '#FFFFFF'}
+        />
+        <View style={styles.container}>
+          {!loadingAuth && renderScreen()}
+          {(loadingAuth || loadingScreen || screenLoading) && (
+            <Loading
+              message={loadingAuth ? 'Preparing your experience' : 'Loading screen'}
+              overlay
+            />
+          )}
         </View>
-      ) : (
-        <View style={styles.container}>{renderScreen()}</View>
-      )}
+      </LoadingContext.Provider>
     </SafeAreaProvider>
   );
 }
@@ -240,12 +328,6 @@ function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     backgroundColor: '#F3F4F6',
   },
   fallbackContainer: {

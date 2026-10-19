@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalendarList } from 'react-native-calendars';
 import { BASE_URL, getRequest } from '../api';
+import Loading from '../loading/loading';
 
 const ServiceRow = ({ item, selected, onToggle }) => (
   <TouchableOpacity style={[styles.serviceRow, selected && styles.serviceRowSelected]} onPress={() => onToggle(item)}>
@@ -225,8 +226,7 @@ const Booking = ({ navigate, routeParams }) => {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={[styles.container, styles.centered]}>
-          <ActivityIndicator size="large" color="#1f2937" />
-          <Text style={styles.loadingText}>Loading services...</Text>
+          <Loading message="Loading services" />
         </View>
       </SafeAreaView>
     );
@@ -237,7 +237,10 @@ const Booking = ({ navigate, routeParams }) => {
       <View style={styles.container}>
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <Text style={styles.headerTitle}>Book Your Service</Text>
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.headerTitle}>Book Your Service</Text>
+            <Text style={styles.headerSubtitle}>Choose a vehicle, service and convenient time.</Text>
+          </View>
           <TouchableOpacity 
             onPress={() => navigate && navigate('services')} 
             style={styles.closeButton}
@@ -507,7 +510,7 @@ const Booking = ({ navigate, routeParams }) => {
           ]}>
             {bookingState === 'loading' && (
               <>
-                <ActivityIndicator size="large" color="#3b82f6" />
+                <ActivityIndicator size="large" color="#3B82F6" />
                 <Text style={styles.modalText}>{bookingMessage}</Text>
               </>
             )}
@@ -551,104 +554,103 @@ const Booking = ({ navigate, routeParams }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#ebe2d7',
+    backgroundColor: '#FFFFFF',
   },
   container: {
     flex: 1,
-    backgroundColor: '#f6f1ea',
+    backgroundColor: '#F5F7FB',
     width: '100%',
     maxWidth: 430,
     alignSelf: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 8,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: '#dfcdb3',
   },
   centered: { justifyContent: 'center', alignItems: 'center' },
-  loadingText: { marginTop: 16, color: '#4b5563', fontSize: 16, fontWeight: '500' },
-  
+  loadingText: { marginTop: 16, color: '#64748B', fontSize: 16, fontWeight: '500' },
+
   /* Header */
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    paddingHorizontal: 20,
-    paddingBottom: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eadcc8',
-    backgroundColor: '#f8f5f0',
-  },
-  headerTitle: { 
-    fontSize: 24, 
-    fontWeight: '800', 
-    color: '#2a241f',
-    letterSpacing: -0.5,
-  },
-  closeButton: { 
-    width: 36, 
-    height: 36, 
-    justifyContent: 'center', 
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: '#efe6dc',
-    borderWidth: 1,
-    borderColor: '#dcc8b0',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    backgroundColor: '#4F46E5',
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    shadowColor: '#3730A3',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 5,
   },
-  closeIcon: { fontSize: 20, color: '#54473d', fontWeight: '600' },
+  headerTextWrap: { flex: 1, paddingRight: 12 },
+  headerTitle: {
+    fontSize: 23,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.55,
+  },
+  headerSubtitle: { color: '#E0E7FF', fontSize: 13, lineHeight: 18, marginTop: 5 },
+  closeButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+  },
+  closeIcon: { fontSize: 20, color: '#FFFFFF', fontWeight: '600' },
 
   /* Scroll Content */
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 110 },
+  scrollContent: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 122 },
 
   /* Section */
-  section: { marginTop: 22, marginBottom: 8 },
-  sectionTitle: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: '#2d261f',
-    marginBottom: 12,
-    letterSpacing: -0.3,
+  section: { marginTop: 12, marginBottom: 3, padding: 17, backgroundColor: '#FFFFFF', borderRadius: 20, borderWidth: 1, borderColor: '#E6EAF2', shadowColor: '#1E293B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.045, shadowRadius: 12, elevation: 2 },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1E1B4B',
+    marginBottom: 13,
+    letterSpacing: -0.25,
   },
 
   dropdownBox: {
-    backgroundColor: '#fffdfb',
-    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e9dcc5',
+    borderColor: '#E3EAF4',
     paddingHorizontal: 16,
     paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#000',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 5,
     elevation: 2,
   },
   dropdownText: {
-    color: '#2a241f',
+    color: '#0F172A',
     fontSize: 15,
     fontWeight: '600',
     flex: 1,
   },
   dropdownCaret: {
-    color: '#5b4636',
+    color: '#64748B',
     fontSize: 18,
     fontWeight: '700',
     marginLeft: 10,
   },
   dropdownMenu: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#eadcc8',
+    borderColor: '#E3EAF4',
     marginTop: 8,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.06,
     shadowRadius: 12,
@@ -658,10 +660,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3efe9',
+    borderBottomColor: '#F1F5F9',
   },
   dropdownItemSelected: {
-    backgroundColor: '#f7efe6',
+    backgroundColor: '#EEF2FF',
   },
   dropdownItemRow: {
     flexDirection: 'row',
@@ -673,12 +675,12 @@ const styles = StyleSheet.create({
     paddingRight: 12,
   },
   dropdownItemText: {
-    color: '#1f2937',
+    color: '#0F172A',
     fontSize: 14,
     fontWeight: '700',
   },
   dropdownItemSubText: {
-    color: '#6b7280',
+    color: '#64748B',
     fontSize: 12,
     marginTop: 3,
   },
@@ -686,7 +688,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   selectionPillLabel: {
-    color: '#7a6759',
+    color: '#64748B',
     fontSize: 12,
     fontWeight: '700',
     marginBottom: 8,
@@ -699,17 +701,17 @@ const styles = StyleSheet.create({
     marginHorizontal: -4,
   },
   selectionPill: {
-    backgroundColor: '#efe2d0',
+    backgroundColor: '#EEF2FF',
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#dcc8b0',
+    borderColor: '#E0E7FF',
     marginRight: 8,
     marginBottom: 8,
   },
   selectionPillText: {
-    color: '#3d3029',
+    color: '#4338CA',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -718,33 +720,33 @@ const styles = StyleSheet.create({
     minWidth: 64,
   },
   servicePriceBoxText: {
-    color: '#1f2937',
+    color: '#0F172A',
     fontWeight: '700',
     fontSize: 12,
   },
-  checkbox: { color: '#9a7b53', fontWeight: '900', marginTop: 4, fontSize: 16 },
+  checkbox: { color: '#4F46E5', fontWeight: '900', marginTop: 4, fontSize: 16 },
 
   /* Service Row */
   serviceRow: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#FFFFFF',
     padding: 14,
     borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#eadcc8',
+    borderColor: '#E3EAF4',
     width: '100%',
   },
   serviceRowSelected: {
-    borderColor: '#9a7b53',
-    backgroundColor: '#f8f3eb',
+    borderColor: '#6366F1',
+    backgroundColor: '#EEF2FF',
   },
   serviceLeft: { flex: 1, paddingRight: 12 },
-  serviceName: { color: '#1f2937', fontWeight: '700', fontSize: 15 },
-  serviceDesc: { color: '#6b7280', fontSize: 13, marginTop: 4 },
+  serviceName: { color: '#0F172A', fontWeight: '700', fontSize: 15 },
+  serviceDesc: { color: '#64748B', fontSize: 13, marginTop: 4 },
   serviceRight: { alignItems: 'flex-end', minWidth: 80 },
-  servicePrice: { color: '#1f2937', fontWeight: '800', fontSize: 16 },
+  servicePrice: { color: '#0F172A', fontWeight: '800', fontSize: 16 },
 
   /* Modern Date Picker */
   dateScrollContainer: {
@@ -752,54 +754,54 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   dateCard: {
-    backgroundColor: '#fffdfb',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 17,
     marginRight: 12,
     minWidth: 70,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ead7ba',
+    borderColor: '#E3EAF4',
     position: 'relative',
   },
   dateCardSelected: {
-    backgroundColor: '#2d261f',
-    borderColor: '#c89d5e',
-    shadowColor: '#2d261f',
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
+    shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
   },
   dateMonth: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6b7280',
+    color: '#64748B',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   dateMonthSelected: {
-    color: '#93c5fd',
+    color: '#DBEAFE',
   },
   dateDay: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#1f2937',
+    color: '#0F172A',
     marginTop: 4,
     lineHeight: 32,
   },
   dateDaySelected: {
-    color: '#ffffff',
+    color: '#FFFFFF',
   },
   dateWeekday: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#6b7280',
+    color: '#64748B',
     marginTop: 2,
   },
   dateWeekdaySelected: {
-    color: '#93c5fd',
+    color: '#DBEAFE',
   },
   availabilityDot: {
     position: 'absolute',
@@ -808,53 +810,53 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#10b981',
+    backgroundColor: '#10B981',
   },
   availabilityDotSelected: {
-    backgroundColor: '#34d399',
+    backgroundColor: '#34D399',
   },
 
   /* Slots */
-  slotsContainer: { 
-    flexDirection: 'row', 
+  slotsContainer: {
+    flexDirection: 'row',
     flexWrap: 'wrap',
     marginHorizontal: -4,
   },
-  slotButton: { 
-    paddingVertical: 12, 
-    paddingHorizontal: 16, 
-    borderRadius: 12, 
-    backgroundColor: '#f3f4f6', 
+  slotButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
     marginRight: 8,
     marginBottom: 12,
     borderWidth: 1.5,
-    borderColor: '#e5e7eb',
+    borderColor: '#E3EAF4',
     minWidth: Dimensions.get('window').width > 380 ? '22%' : '30%',
     alignItems: 'center',
   },
-  slotButtonSelected: { 
-    backgroundColor: '#1f2937',
-    borderColor: '#1f2937',
+  slotButtonSelected: {
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
   },
   slotButtonDisabled: {
     opacity: 0.4,
   },
-  slotText: { color: '#6b7280', fontWeight: '600', fontSize: 13 },
-  slotTextSelected: { color: '#fff', fontWeight: '700' },
-  slotTextDisabled: { color: '#9ca3af' },
-  noSlots: { color: '#9ca3af', fontSize: 14, fontStyle: 'italic' },
+  slotText: { color: '#64748B', fontWeight: '600', fontSize: 13 },
+  slotTextSelected: { color: '#FFFFFF', fontWeight: '700' },
+  slotTextDisabled: { color: '#94A3B8' },
+  noSlots: { color: '#94A3B8', fontSize: 14, fontStyle: 'italic' },
 
   /* Error Card */
   errorCard: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: '#FEF2F2',
     borderRadius: 14,
     padding: 16,
     marginTop: 20,
     borderLeftWidth: 4,
-    borderLeftColor: '#dc2626',
+    borderLeftColor: '#DC2626',
   },
-  errorIcon: { fontSize: 32, color: '#dc2626', textAlign: 'center', marginBottom: 8 },
-  errorMessage: { color: '#991b1b', fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  errorIcon: { fontSize: 32, color: '#DC2626', textAlign: 'center', marginBottom: 8 },
+  errorMessage: { color: '#991B1B', fontSize: 14, fontWeight: '600', textAlign: 'center' },
 
   /* Bottom Card */
   bottomCard: {
@@ -862,40 +864,40 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fffdfb',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 22,
     borderTopWidth: 1,
-    borderTopColor: '#eadcc8',
-    shadowColor: '#000',
+    borderTopColor: '#E8EDF5',
+    shadowColor: '#1E293B',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowRadius: 14,
+    elevation: 5,
   },
   summaryContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  summaryLabel: { color: '#7a6759', fontSize: 12, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
-  summaryPrice: { color: '#2a241f', fontSize: 24, fontWeight: '800' },
-  bookButton: { 
-    backgroundColor: '#2d261f', 
-    paddingVertical: 14, 
-    paddingHorizontal: 26, 
+  summaryLabel: { color: '#64748B', fontSize: 12, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  summaryPrice: { color: '#0F172A', fontSize: 24, fontWeight: '800' },
+  bookButton: {
+    backgroundColor: '#4F46E5',
+    paddingVertical: 14,
+    paddingHorizontal: 26,
     borderRadius: 14,
-    shadowColor: '#2d261f',
+    shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.14,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
   },
   bookButtonDisabled: {
     opacity: 0.5,
   },
-  bookButtonText: { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 },
+  bookButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 },
 
   /* Modal */
   modalOverlay: {
@@ -906,33 +908,33 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 32,
     alignItems: 'center',
     width: '100%',
     maxWidth: 320,
-    shadowColor: '#000',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.15,
     shadowRadius: 16,
     elevation: 20,
   },
   modalSuccess: {
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#F0FDF4',
   },
   modalError: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: '#FEF2F2',
   },
   modalText: {
-    color: '#4b5563',
+    color: '#64748B',
     fontSize: 16,
     fontWeight: '600',
     marginTop: 16,
     textAlign: 'center',
   },
   modalTitle: {
-    color: '#1f2937',
+    color: '#0F172A',
     fontSize: 20,
     fontWeight: '800',
     marginTop: 16,
@@ -940,14 +942,14 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   modalSubtext: {
-    color: '#6b7280',
+    color: '#64748B',
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
     fontWeight: '500',
   },
   modalMessage: {
-    color: '#991b1b',
+    color: '#991B1B',
     fontSize: 14,
     marginTop: 12,
     textAlign: 'center',
@@ -958,29 +960,29 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#DCFCE7',
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkmark: {
     fontSize: 48,
-    color: '#16a34a',
+    color: '#16A34A',
     fontWeight: '900',
   },
   errorModalIcon: {
     fontSize: 48,
-    color: '#dc2626',
+    color: '#DC2626',
     fontWeight: '900',
   },
   errorDismissButton: {
-    backgroundColor: '#dc2626',
+    backgroundColor: '#DC2626',
     paddingVertical: 12,
     paddingHorizontal: 32,
     borderRadius: 10,
     marginTop: 20,
   },
   errorDismissText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 14,
   },

@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
   },
   modalVerifyButton: {
     alignItems: 'center',
-    backgroundColor: '#0f172a',
+    backgroundColor: '#2563eb',
     borderRadius: 16,
     padding: 16,
   },

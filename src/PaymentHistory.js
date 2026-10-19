@@ -19,6 +19,7 @@ import RNFS from 'react-native-fs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRequest } from '../api';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Loading from '../loading/loading';
 
 const PaymentHistory = ({ navigate }) => {
   const insets = useSafeAreaInsets();
@@ -239,7 +240,7 @@ const PaymentHistory = ({ navigate }) => {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={[styles.container, styles.centered]}>
-          <ActivityIndicator size="large" color="#1e40af" />
+          <Loading message="Loading payment history" />
         </View>
       </SafeAreaView>
     );

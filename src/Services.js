@@ -1,19 +1,37 @@
 import React, { useEffect, useState } from 'react';
 import {
-  SafeAreaView,
   View,
   Text,
   FlatList,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   TextInput,
 } from 'react-native';
 import TabBar from './TabBar';
 import { BASE_URL } from '../api';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Loading from '../loading/loading';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const ServiceItem = ({ item, onPress }) => {
   const iconLabel = item.name ? item.name.charAt(0).toUpperCase() : 'S';
+  const rating = item.average_rating || 0;
+
+  const renderStars = (rating) => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <MaterialCommunityIcons
+          key={i}
+          name={i <= rating ? 'star' : 'star-outline'}
+          size={14}
+          color={i <= rating ? '#F59E0B' : '#CBD5E1'}
+        />
+      );
+    }
+    return stars;
+  };
+
   return (
     <TouchableOpacity style={styles.serviceCard} activeOpacity={0.85} onPress={onPress}>
       <View style={styles.serviceTopRow}>
@@ -25,11 +43,20 @@ const ServiceItem = ({ item, onPress }) => {
           <Text style={styles.serviceDescription} numberOfLines={2}>
             {item.description || 'Premium service tailored for your vehicle.'}
           </Text>
+          <View style={styles.ratingContainer}>
+            <View style={styles.stars}>{renderStars(rating)}</View>
+            <Text style={styles.ratingText}>{rating > 0 ? rating.toFixed(1) : 'New'}</Text>
+          </View>
         </View>
       </View>
       <View style={styles.serviceFooter}>
-        <Text style={styles.servicePrice}>{item.price ? `₱${item.price}` : 'Contact us'}</Text>
-        <Text style={styles.serviceArrow}>{'>'}</Text>
+        <View style={styles.priceContainer}>
+          <Text style={styles.priceLabel}>Starting at</Text>
+          <Text style={styles.servicePrice}>{item.price ? `₱${item.price}` : 'Contact us'}</Text>
+        </View>
+        <View style={styles.arrowContainer}>
+          <MaterialCommunityIcons name="chevron-right" size={22} color="#2563EB" />
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -51,7 +78,10 @@ const Services = ({ navigate }) => {
         const res = await fetch(`${BASE_URL}/services`);
         const json = await res.json();
         if (!res.ok) throw new Error(json.message || 'Failed to load');
-        if (mounted) setServices(json.data || []);
+        if (mounted) {
+          console.log('Services data:', json.data);
+          setServices(json.data || []);
+        }
       } catch (e) {
         if (mounted) setError(e.message);
       } finally {
@@ -76,9 +106,9 @@ const Services = ({ navigate }) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <View style={[styles.container, styles.centered]}>
-          <ActivityIndicator size="large" color="#1f2937" />
+          <Loading message="Loading services" />
         </View>
       </SafeAreaView>
     );
@@ -86,7 +116,7 @@ const Services = ({ navigate }) => {
 
   if (error) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <View style={[styles.container, styles.centered]}>
           <Text style={styles.errorText}>Error loading services.</Text>
           <Text style={styles.errorDetail}>{error}</Text>
@@ -96,19 +126,24 @@ const Services = ({ navigate }) => {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.headerCard}>
+          <View style={styles.headerEyebrow}>
+            <MaterialCommunityIcons name="sparkles" size={15} color="#C7D2FE" />
+            <Text style={styles.headerEyebrowText}>ROADREADY CARE</Text>
+          </View>
           <Text style={styles.welcomeText}>Our Services</Text>
           <Text style={styles.headerSubtitle}>Choose the best care package for your vehicle.</Text>
         </View>
 
         <View style={styles.searchCard}>
+          <MaterialCommunityIcons name="magnify" size={21} color="#64748B" />
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search services"
-            placeholderTextColor="#d1d5db"
+            placeholder="Search services and care packages"
+            placeholderTextColor="#94A3B8"
             style={styles.searchInput}
           />
         </View>
@@ -140,139 +175,165 @@ const Services = ({ navigate }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#ebe2d7',
+    backgroundColor: '#F5F7FB',
   },
   container: {
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 16,
-    backgroundColor: '#f6f1ea',
+    backgroundColor: '#F5F7FB',
     width: '100%',
     maxWidth: 430,
     alignSelf: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 8,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: '#dfcdb3',
   },
   centered: {
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerCard: {
-    backgroundColor: '#f8f5f0',
-    borderRadius: 18,
+    backgroundColor: '#4F46E5',
+    borderRadius: 24,
     padding: 20,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#eadcc8',
+    overflow: 'hidden',
   },
+  headerEyebrow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  headerEyebrowText: { color: '#E0E7FF', fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
   welcomeText: {
-    color: '#2a241f',
-    fontSize: 28,
+    color: '#FFFFFF',
+    fontSize: 27,
     fontWeight: '800',
     marginBottom: 8,
-    letterSpacing: -0.5,
+    letterSpacing: -0.6,
   },
   headerSubtitle: {
-    color: '#6b7280',
+    color: '#E0E7FF',
     fontSize: 14,
     lineHeight: 20,
     fontWeight: '500',
   },
   searchCard: {
-    backgroundColor: '#fffdfb',
-    borderRadius: 14,
-    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 14,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#e9dcc5',
-    shadowColor: '#000',
+    borderColor: '#E8EDF5',
+    shadowColor: '#1E293B',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 5,
+    shadowRadius: 10,
     elevation: 2,
   },
   searchInput: {
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-    color: '#1f2937',
-    paddingHorizontal: 16,
+    flex: 1,
+    height: 50,
+    color: '#0F172A',
+    paddingHorizontal: 10,
     fontSize: 15,
     fontWeight: '500',
-    borderWidth: 1,
-    borderColor: '#eadcc8',
   },
   listContent: {
     paddingBottom: 30,
   },
   serviceCard: {
-    backgroundColor: '#fffdfb',
-    borderRadius: 18,
-    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 18,
     borderWidth: 1,
-    borderColor: '#eadcc8',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
+    borderColor: '#E8EDF5',
+    shadowColor: '#1E293B',
+    shadowOpacity: 0.055,
     shadowOffset: { width: 0, height: 3 },
     shadowRadius: 10,
     elevation: 3,
   },
   serviceTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 14,
   },
   serviceIconPlaceholder: {
-    width: 54,
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: '#efe2d0',
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: '#EEF4FF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 14,
     borderWidth: 1,
-    borderColor: '#dcc8b0',
+    borderColor: '#DCE8FF',
   },
   serviceIconLabel: {
-    color: '#3d3029',
-    fontSize: 20,
+    color: '#2563EB',
+    fontSize: 22,
     fontWeight: '800',
   },
   serviceHeaderText: {
     flex: 1,
   },
   serviceTitle: {
-    color: '#1f2937',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
+    color: '#0F172A',
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 5,
+    letterSpacing: -0.3,
   },
   serviceDescription: {
-    color: '#6b7280',
+    color: '#64748B',
     fontSize: 13,
     lineHeight: 18,
+    marginBottom: 10,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stars: {
+    flexDirection: 'row',
+    marginRight: 8,
+  },
+  ratingText: {
+    color: '#64748B',
+    fontSize: 13,
+    fontWeight: '700',
   },
   serviceFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  priceContainer: {
+    flexDirection: 'column',
+  },
+  priceLabel: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
   },
   servicePrice: {
-    color: '#2a241f',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  serviceArrow: {
-    color: '#9a7b53',
+    color: '#1D4ED8',
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  arrowContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF4FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#DCE8FF',
   },
   separator: {
     height: 12,
@@ -282,18 +343,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    color: '#9ca3af',
+    color: '#64748B',
     fontSize: 15,
     fontWeight: '500',
   },
   errorText: {
-    color: '#1f2937',
+    color: '#0F172A',
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 8,
   },
   errorDetail: {
-    color: '#6b7280',
+    color: '#64748B',
     fontSize: 13,
     textAlign: 'center',
     paddingHorizontal: 20,
