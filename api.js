@@ -49,19 +49,44 @@ export const removeToken = async () => {
 // Generic GET request
 // =========================
 export const getRequest = async (endpoint) => {
+  const url = `${BASE_URL}${endpoint}`;
+
+  console.log("================================");
+  console.log("API CONNECTION TEST");
+  console.log("BASE URL:", BASE_URL);
+  console.log("ENDPOINT:", endpoint);
+  console.log("FULL URL:", url);
+  console.log("================================");
+
   try {
     const token = await getToken();
-    const headers = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
-      headers,
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        ...(token && {
+          Authorization: `Bearer ${token}`,
+        }),
+      },
     });
-    return await response.json();
+
+    console.log("STATUS:", response.status);
+
+    const result = await response.text();
+
+    console.log("RESPONSE:", result);
+
+    return JSON.parse(result);
+
   } catch (error) {
-    console.log("GET Error:", error);
-    return { success: false, message: "Network error" };
+    console.log("NETWORK ERROR NAME:", error.name);
+    console.log("NETWORK ERROR MESSAGE:", error.message);
+
+    return {
+      success: false,
+      message: error.message,
+    };
   }
 };
 

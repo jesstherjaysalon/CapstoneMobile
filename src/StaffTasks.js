@@ -1,18 +1,18 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   SafeAreaView,
   View,
   Text,
+  Alert,
   FlatList,
+  RefreshControl,
   TouchableOpacity,
   StyleSheet,
   TextInput,
   Modal,
   ScrollView,
-  Alert,
   Image,
   StatusBar,
-  Dimensions,
   PermissionsAndroid,
   Platform,
 } from 'react-native';
@@ -21,8 +21,6 @@ import { getRequest, postRequest, putRequest, BASE_URL, fixImageUrl } from '../a
 import Loading from '../loading/loading';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import * as ImagePicker from 'react-native-image-picker';
-
-const { width } = Dimensions.get('window');
 
 const STATUS_STEPS = {
   pending: { label: 'Pending', color: '#F59E0B', bgColor: '#FEF3C7', icon: 'schedule' },
@@ -53,21 +51,11 @@ const TaskItem = ({ task, onStatusChange, onOpenRequestModal, onOpenImageModal, 
   const statusStyle = STATUS_STEPS[task.status] || STATUS_STEPS.pending;
 
   const handleStatusChange = async (newStatus) => {
-    Alert.alert(
-      'Change Status',
-      `Change task status to ${STATUS_STEPS[newStatus].label}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          onPress: () => onStatusChange(task.id, newStatus),
-        },
-      ]
-    );
+    onStatusChange(task.id, newStatus);
   };
 
   const hasOutstandingReturnableItems = (task.product_usages || []).some(
-    (usage) => usage.is_returnable && !usage.returned_at
+    (usage) => usage.is_returnable && usage.status !== 'Rejected' && !usage.returned_at
   );
 
   const canComplete = task.service?.image && !hasOutstandingReturnableItems;
@@ -185,6 +173,9 @@ const TaskItem = ({ task, onStatusChange, onOpenRequestModal, onOpenImageModal, 
 const StaffTasks = ({ navigate }) => {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [tasks, setTasks] = useState([]);
   const [products, setProducts] = useState([]);
@@ -203,39 +194,44 @@ const StaffTasks = ({ navigate }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-    const fetchTasks = async () => {
-      try {
+  const fetchTasks = useCallback(async (showLoading = false) => {
+    try {
+      if (showLoading) {
         setLoading(true);
-        setError('');
-        const response = await getRequest('/staff/tasks');
-
-        if (!response || response.success === false) {
-          const message = response?.message || 'Unable to load tasks';
-          throw new Error(message);
-        }
-
-        if (mounted) {
-          setTasks(response.data?.jobOrders || []);
-          setProducts(response.data?.products || []);
-        }
-      } catch (fetchError) {
-        if (mounted) {
-          setError(fetchError.message || 'Failed to load tasks');
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+        setLoadingMessage('Loading tasks...');
       }
-    };
+      setError('');
+      const response = await getRequest('/staff/tasks');
 
-    fetchTasks();
-    return () => {
-      mounted = false;
-    };
+      if (!response || response.success === false) {
+        const message = response?.message || 'Unable to load tasks';
+        throw new Error(message);
+      }
+
+      setTasks(response.data?.jobOrders || []);
+      setProducts(response.data?.products || []);
+    } catch (fetchError) {
+      setError(fetchError.message || 'Failed to load tasks');
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+        setLoadingMessage('');
+      }
+    }
   }, []);
+
+  const refreshTasks = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchTasks();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchTasks]);
+
+  useEffect(() => {
+    fetchTasks(true);
+  }, [fetchTasks]);
 
   const filteredTasks = useMemo(() => {
     const q = (search || '').trim().toLowerCase();
@@ -263,22 +259,23 @@ const StaffTasks = ({ navigate }) => {
   }, [products, productSearch]);
 
   const handleStatusChange = async (taskId, newStatus) => {
+    setLoadingMessage('Updating task status...');
+    setActionLoading(true);
     try {
       const response = await putRequest(`/staff/tasks/${taskId}`, { status: newStatus });
 
       if (!response || response.success === false) {
-        Alert.alert('Error', response?.message || 'Failed to update status');
+        Alert.alert('Unable to update task', response?.message || 'Please try again.');
         return;
       }
 
-      Alert.alert('Success', 'Task status updated successfully');
-      setTasks((prev) =>
-        prev.map((task) =>
-          task.id === taskId ? { ...task, status: newStatus } : task
-        )
-      );
+      await refreshTasks();
     } catch (error) {
-      Alert.alert('Error', 'Failed to update status');
+      console.error('Failed to update task status:', error);
+      Alert.alert('Unable to update task', 'Please check your connection and try again.');
+    } finally {
+      setActionLoading(false);
+      setLoadingMessage('');
     }
   };
 
@@ -292,10 +289,11 @@ const StaffTasks = ({ navigate }) => {
 
   const handleSubmitRequest = async () => {
     if (!requestFormData.product_id) {
-      Alert.alert('Error', 'Please select a product');
       return;
     }
 
+    setLoadingMessage('Submitting product request...');
+    setActionLoading(true);
     try {
       const response = await postRequest('/staff/service-product-usage', {
         job_order_id: selectedTask.id,
@@ -304,54 +302,38 @@ const StaffTasks = ({ navigate }) => {
       });
 
       if (!response || response.success === false) {
-        Alert.alert('Error', response?.message || 'Failed to submit request');
         return;
       }
 
-      Alert.alert('Success', 'Product request submitted successfully');
       setIsRequestModalOpen(false);
       setSelectedTask(null);
       setRequestFormData({ product_id: '', quantity_used: 1 });
+      await refreshTasks();
     } catch (error) {
-      Alert.alert('Error', 'Failed to submit request');
+      console.error('Failed to submit product request:', error);
+    } finally {
+      setActionLoading(false);
+      setLoadingMessage('');
     }
   };
 
   const handleReturnProduct = async (usageId) => {
-    Alert.alert(
-      'Return Product',
-      'Are you sure you want to return this product?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Return',
-          onPress: async () => {
-            try {
-              const response = await postRequest(`/staff/service-product-usage/${usageId}/return`);
+    setLoadingMessage('Returning product...');
+    setActionLoading(true);
+    try {
+      const response = await postRequest(`/staff/service-product-usage/${usageId}/return`);
 
-              if (!response || response.success === false) {
-                Alert.alert('Error', response?.message || 'Failed to return product');
-                return;
-              }
+      if (!response || response.success === false) {
+        return;
+      }
 
-              Alert.alert('Success', 'Product returned successfully');
-              setTasks((prev) =>
-                prev.map((task) => ({
-                  ...task,
-                  product_usages: task.product_usages?.map((usage) =>
-                    usage.id === usageId
-                      ? { ...usage, returned_at: new Date().toISOString(), status: 'Approved' }
-                      : usage
-                  ),
-                }))
-              );
-            } catch (error) {
-              Alert.alert('Error', 'Failed to return product');
-            }
-          },
-        },
-      ]
-    );
+      await refreshTasks();
+    } catch (error) {
+      console.error('Failed to return product:', error);
+    } finally {
+      setActionLoading(false);
+      setLoadingMessage('');
+    }
   };
 
   const handleOpenImageModal = (task) => {
@@ -378,7 +360,6 @@ const StaffTasks = ({ navigate }) => {
       }
 
       if (result.errorCode) {
-        Alert.alert('Unable to open gallery', result.errorMessage || 'Please try again.');
         return;
       }
 
@@ -386,7 +367,7 @@ const StaffTasks = ({ navigate }) => {
         setSelectedImage(result.assets[0]);
       }
     } catch (error) {
-      Alert.alert('Unable to open gallery', error.message || 'Please try again.');
+      return;
     }
   };
 
@@ -404,10 +385,6 @@ const StaffTasks = ({ navigate }) => {
         );
 
         if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
-          Alert.alert(
-            'Camera permission needed',
-            'Allow camera access in your phone settings to take a completion photo.'
-          );
           return;
         }
       }
@@ -423,10 +400,6 @@ const StaffTasks = ({ navigate }) => {
       }
 
       if (result.errorCode) {
-        const message = result.errorCode === 'permission'
-          ? 'Camera access was not granted. Allow camera access in your phone settings, then try again.'
-          : result.errorMessage || 'Please check that your camera is available and try again.';
-        Alert.alert('Unable to take photo', message);
         return;
       }
 
@@ -434,17 +407,18 @@ const StaffTasks = ({ navigate }) => {
         setSelectedImage(result.assets[0]);
       }
     } catch (error) {
-      Alert.alert('Unable to open camera', error.message || 'Please try again.');
+      return;
     }
   };
 
   const handleUploadImage = async () => {
     if (!selectedImage || !selectedTask) {
-      Alert.alert('Error', 'Please select an image first');
       return;
     }
 
+    setLoadingMessage('Uploading completion photo...');
     setUploading(true);
+    setActionLoading(true);
     try {
       const formData = new FormData();
       const imageUri = selectedImage.uri;
@@ -460,31 +434,19 @@ const StaffTasks = ({ navigate }) => {
       const response = await postRequest(`/staff/tasks/${selectedTask.id}/upload-image`, formData);
 
       if (!response || response.success === false) {
-        Alert.alert('Error', response?.message || 'Failed to upload image');
         return;
       }
 
-      Alert.alert('Success', 'Image uploaded successfully');
       setIsImageModalOpen(false);
       setSelectedTask(null);
       setSelectedImage(null);
-      setTasks((prev) =>
-        prev.map((task) =>
-          task.id === selectedTask.id
-            ? {
-                ...task,
-                service: {
-                  ...task.service,
-                  image: response.data?.image_path,
-                },
-              }
-            : task
-        )
-      );
+      await refreshTasks();
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload image');
+      console.error('Failed to upload completion photo:', error);
     } finally {
       setUploading(false);
+      setActionLoading(false);
+      setLoadingMessage('');
     }
   };
 
@@ -494,7 +456,7 @@ const StaffTasks = ({ navigate }) => {
         <StatusBar hidden={false} barStyle="light-content" backgroundColor="#6366F1" translucent={false} />
         <View style={styles.container}>
           <View style={styles.loadingContainer}>
-            <Loading message="Loading tasks" />
+            <Loading message={loadingMessage || 'Loading tasks'} />
           </View>
         </View>
       </SafeAreaView>
@@ -513,7 +475,7 @@ const StaffTasks = ({ navigate }) => {
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity
               style={styles.retryButton}
-              onPress={() => navigate('staffTasks')}
+              onPress={() => fetchTasks(true)}
             >
               <Text style={styles.retryText}>Try again</Text>
             </TouchableOpacity>
@@ -527,85 +489,99 @@ const StaffTasks = ({ navigate }) => {
     <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <StatusBar hidden={false} barStyle="light-content" backgroundColor="#6366F1" translucent={false} />
       <View style={styles.container}>
-        <View style={[styles.headerRow, { paddingTop: insets.top + 18 }]}>
-          <View style={styles.headerContent}>
-            <View style={styles.headerLeft}>
-              <TouchableOpacity style={styles.backButton} onPress={() => navigate('staffDashboard')}>
-                <Icon name="arrow-back" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-              <View>
-                <Text style={styles.greeting}>Welcome back,</Text>
-                <Text style={styles.title}>My Tasks</Text>
-              </View>
-            </View>
-
-          </View>
-
-          <View style={styles.headerSummary}>
-            <View style={styles.headerSummaryTextWrap}>
-              <Text style={styles.summaryEyebrow}>Today</Text>
-              <Text style={styles.summaryTitle}>{filteredTasks.length} active jobs</Text>
-            </View>
-            <View style={styles.headerPill}>
-              <Text style={styles.headerPillValue}>{tasks.filter((task) => task.status === 'in_progress').length}</Text>
-              <Text style={styles.headerPillLabel}>Live</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.searchRow}>
-          <View style={styles.searchContainer}>
-            <View style={styles.searchIconWrapper}>
-              <Icon name="search" size={22} color="#9CA3AF" />
-            </View>
-            <TextInput
-              placeholder="Search tasks..."
-              placeholderTextColor="#9CA3AF"
-              style={styles.searchInput}
-              value={search}
-              onChangeText={setSearch}
-            />
-          </View>
-        </View>
-
-        <View style={styles.filterRow}>
-          <TouchableOpacity
-            style={[styles.filterButton, !statusFilter && styles.filterButtonActive]}
-            onPress={() => setStatusFilter('')}
-          >
-            <Text style={[styles.filterButtonText, !statusFilter && styles.filterButtonTextActive]}>
-              All
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterButton, statusFilter === 'pending' && styles.filterButtonActive]}
-            onPress={() => setStatusFilter('pending')}
-          >
-            <Text style={[styles.filterButtonText, statusFilter === 'pending' && styles.filterButtonTextActive]}>
-              Pending
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterButton, statusFilter === 'in_progress' && styles.filterButtonActive]}
-            onPress={() => setStatusFilter('in_progress')}
-          >
-            <Text style={[styles.filterButtonText, statusFilter === 'in_progress' && styles.filterButtonTextActive]}>
-              In Progress
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         <FlatList
+          style={styles.taskList}
           data={filteredTasks}
           keyExtractor={(item) => String(item.id)}
+          ListHeaderComponent={
+            <View>
+              <View style={[styles.headerRow, { paddingTop: insets.top + 18 }]}>
+                <View style={styles.headerContent}>
+                  <View style={styles.headerLeft}>
+                    <TouchableOpacity style={styles.backButton} onPress={() => navigate('staffDashboard')}>
+                      <Icon name="arrow-back" size={20} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <View>
+                      <Text style={styles.greeting}>STAFF WORKSPACE</Text>
+                      <Text style={styles.title}>My Tasks</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.refreshButton}
+                    onPress={refreshTasks}
+                    disabled={refreshing}
+                    accessibilityRole="button"
+                    accessibilityLabel="Refresh tasks"
+                  >
+                    <Icon name="refresh" size={21} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.headerSummary}>
+                  <View style={styles.headerSummaryTextWrap}>
+                    <Text style={styles.summaryEyebrow}>SHOWING</Text>
+                    <Text style={styles.summaryTitle}>{filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}</Text>
+                  </View>
+                  <View style={styles.headerPill}>
+                    <Text style={styles.headerPillValue}>{tasks.filter((task) => task.status === 'in_progress').length}</Text>
+                    <Text style={styles.headerPillLabel}>IN PROGRESS</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.searchRow}>
+                <View style={styles.searchContainer}>
+                  <View style={styles.searchIconWrapper}>
+                    <Icon name="search" size={22} color="#9CA3AF" />
+                  </View>
+                  <TextInput
+                    placeholder="Search tasks..."
+                    placeholderTextColor="#9CA3AF"
+                    style={styles.searchInput}
+                    value={search}
+                    onChangeText={setSearch}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.filterRow}>
+                <TouchableOpacity
+                  style={[styles.filterButton, !statusFilter && styles.filterButtonActive]}
+                  onPress={() => setStatusFilter('')}
+                >
+                  <Text style={[styles.filterButtonText, !statusFilter && styles.filterButtonTextActive]}>
+                    All
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterButton, statusFilter === 'pending' && styles.filterButtonActive]}
+                  onPress={() => setStatusFilter('pending')}
+                >
+                  <Text style={[styles.filterButtonText, statusFilter === 'pending' && styles.filterButtonTextActive]}>
+                    Pending
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterButton, statusFilter === 'in_progress' && styles.filterButtonActive]}
+                  onPress={() => setStatusFilter('in_progress')}
+                >
+                  <Text style={[styles.filterButtonText, statusFilter === 'in_progress' && styles.filterButtonTextActive]}>
+                    In Progress
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          }
           renderItem={({ item }) => (
-            <TaskItem
-              task={item}
-              onStatusChange={handleStatusChange}
-              onOpenRequestModal={handleOpenRequestModal}
-              onOpenImageModal={handleOpenImageModal}
-              onOpenProductUsageModal={handleOpenProductUsageModal}
-            />
+            <View style={styles.taskItemContainer}>
+              <TaskItem
+                task={item}
+                onStatusChange={handleStatusChange}
+                onOpenRequestModal={handleOpenRequestModal}
+                onOpenImageModal={handleOpenImageModal}
+                onOpenProductUsageModal={handleOpenProductUsageModal}
+              />
+            </View>
           )}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           ListEmptyComponent={() => (
@@ -619,8 +595,20 @@ const StaffTasks = ({ navigate }) => {
               </Text>
             </View>
           )}
-          contentContainerStyle={filteredTasks.length ? styles.listContent : styles.emptyListContent}
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          bounces={true}
+          alwaysBounceVertical={true}
+          overScrollMode="always"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={refreshTasks}
+              colors={['#4F46E5']}
+              tintColor="#4F46E5"
+              progressViewOffset={-20}
+            />
+          }
         />
 
         {/* Request Modal */}
@@ -838,10 +826,7 @@ const StaffTasks = ({ navigate }) => {
                       {usage.is_returnable && usage.status === 'Approved' && !usage.returned_at && (
                         <TouchableOpacity
                           style={styles.returnButtonModal}
-                          onPress={() => {
-                            setIsProductUsageModalOpen(false);
-                            handleReturnProduct(usage.id);
-                          }}
+                          onPress={() => handleReturnProduct(usage.id)}
                         >
                           <Icon name="keyboard-return" size={16} color="#FFFFFF" />
                           <Text style={styles.returnButtonText}>Return product</Text>
@@ -972,6 +957,8 @@ const StaffTasks = ({ navigate }) => {
             </View>
           </View>
         </Modal>
+
+        {actionLoading && <Loading message={loadingMessage || 'Processing...'} overlay={true} />}
       </View>
     </SafeAreaView>
   );
@@ -980,9 +967,12 @@ const StaffTasks = ({ navigate }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F4F6FB',
   },
   container: {
+    flex: 1,
+  },
+  taskList: {
     flex: 1,
   },
   loadingContainer: {
@@ -1031,149 +1021,145 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     backgroundColor: '#4F46E5',
-    paddingTop: 18,
-    paddingHorizontal: 24,
-    paddingBottom: 26,
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.28,
-    shadowRadius: 22,
-    elevation: 12,
-    position: 'relative',
+    paddingHorizontal: 22,
+    paddingBottom: 22,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 24,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
+  refreshButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
   backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.14)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 13,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255,255,255,0.22)',
   },
   greeting: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '600',
-    letterSpacing: 0.2,
-    marginBottom: 2,
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.72)',
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    marginBottom: 4,
   },
   title: {
-    fontSize: 24,
+    fontSize: 27,
     fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: -0.5,
+    letterSpacing: -0.7,
   },
   headerSummary: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.18)',
   },
   headerSummaryTextWrap: {
     flex: 1,
   },
   summaryEyebrow: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
+    color: 'rgba(255,255,255,0.68)',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
   summaryTitle: {
     color: '#FFFFFF',
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: '700',
-    marginTop: 4,
+    marginTop: 5,
     letterSpacing: -0.3,
   },
   headerPill: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.13)',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     alignItems: 'center',
   },
   headerPillValue: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
   },
   headerPillLabel: {
     color: 'rgba(255,255,255,0.72)',
-    fontSize: 10,
+    fontSize: 8,
     fontWeight: '700',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   searchRow: {
-    paddingHorizontal: 24,
-    marginTop: 22,
+    paddingHorizontal: 20,
+    marginTop: 20,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 8,
+    borderRadius: 15,
+    paddingHorizontal: 15,
     borderWidth: 1,
-    borderColor: '#EEF2F7',
+    borderColor: '#E7EAF1',
   },
   searchIconWrapper: {
     marginRight: 10,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 14,
-    fontSize: 15,
+    paddingVertical: 13,
+    fontSize: 14,
     color: '#1F2937',
   },
   filterRow: {
     flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 24,
-    marginTop: 18,
+    gap: 8,
+    paddingHorizontal: 20,
+    marginTop: 14,
   },
   filterButton: {
     flex: 1,
     paddingVertical: 11,
-    paddingHorizontal: 12,
-    borderRadius: 14,
+    paddingHorizontal: 9,
+    borderRadius: 13,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 4,
+    borderColor: '#E7EAF1',
   },
   filterButtonActive: {
     backgroundColor: '#4F46E5',
     borderColor: '#4F46E5',
   },
   filterButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#6B7280',
     textAlign: 'center',
@@ -1182,17 +1168,15 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   listContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    paddingTop: 20,
-  },
-  emptyListContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingBottom: 30,
+    minHeight: '100%',
+  },
+  taskItemContainer: {
+    paddingHorizontal: 20,
   },
   separator: {
-    height: 16,
+    height: 13,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -1221,34 +1205,34 @@ const styles = StyleSheet.create({
   },
   taskCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 4,
+    borderRadius: 20,
+    padding: 17,
     borderWidth: 1,
-    borderColor: '#EEF2F7',
+    borderColor: '#E6EAF2',
+    shadowColor: '#172554',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
   taskHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 14,
   },
   taskId: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
-    color: '#6B7280',
+    color: '#7C8496',
     letterSpacing: 0.6,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
     gap: 5,
   },
   statusText: {
@@ -1258,58 +1242,59 @@ const styles = StyleSheet.create({
   serviceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
-    marginBottom: 9,
+    gap: 11,
+    marginBottom: 14,
   },
   serviceIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 9,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
   serviceName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#182230',
     flex: 1,
   },
   detailsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 9,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 10,
+    marginBottom: 14,
   },
   detailItem: {
     flex: 1,
     minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 8,
   },
   detailText: {
     flex: 1,
     minWidth: 0,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: '#4B5563',
   },
   timeRow: {
     flexDirection: 'row',
-    gap: 8,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-    marginBottom: 9,
+    gap: 10,
+    backgroundColor: '#F7F8FC',
+    borderRadius: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 11,
+    marginBottom: 14,
   },
   timeItem: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 5,
     minWidth: 0,
+    paddingVertical: 2,
   },
   timeCompactLabel: {
     fontSize: 9,
@@ -1319,26 +1304,28 @@ const styles = StyleSheet.create({
   timeValue: {
     flex: 1,
     minWidth: 0,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
     color: '#1F2937',
   },
   actionRow: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#F3F4F6',
+    minHeight: 42,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    backgroundColor: '#F1F3F8',
     gap: 4,
   },
   actionButtonText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     color: '#1F2937',
   },
@@ -1358,14 +1345,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    marginTop: 9,
-    paddingTop: 8,
+    marginTop: 13,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#EEF2F7',
   },
   productUsageTitle: {
     flex: 1,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: '#4B5563',
   },
